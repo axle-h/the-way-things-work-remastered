@@ -11,8 +11,11 @@ import {
   ByteWriter,
   type PageDatabaseSpec,
 } from '@twtw/formats/testing';
+import type { Clock } from '../clock.ts';
 import { DATABASE_PATH, PROGRAM_PATH } from '../content.ts';
 import { MemoryDataSource } from '../data/memory-source.ts';
+import type { AnimationRequest, ControlRequest, Media, MediaAction, MediaTarget } from '../media.ts';
+import type { PageInstance } from '../page.ts';
 import { ProgramBitmap } from '../pictures.ts';
 
 /** A pixel value for each position, or one value for all. */
@@ -65,8 +68,10 @@ export const SYNTHETIC_BITMAP_FILL = {
   [ProgramBitmap.animationPlay]: 116,
   [ProgramBitmap.animationProgress]: 159,
   [ProgramBitmap.cancel]: 170,
+  [ProgramBitmap.cancelPressed]: 171,
   [ProgramBitmap.lampOn]: 172,
   [ProgramBitmap.lampOff]: 173,
+  [ProgramBitmap.dialGo]: 152,
 } as const;
 
 /** Sizes of the program bitmaps the engine draws (program.md, rendering.md §5–6). */
@@ -76,8 +81,10 @@ const PROGRAM_BITMAP_SIZES: readonly (readonly [number, number, number])[] = [
   [ProgramBitmap.animationPlay, 16, 16],
   [ProgramBitmap.animationProgress, 100, 30],
   [ProgramBitmap.cancel, 62, 22],
+  [ProgramBitmap.cancelPressed, 62, 22],
   [ProgramBitmap.lampOn, 17, 8],
   [ProgramBitmap.lampOff, 18, 8],
+  [ProgramBitmap.dialGo, 46, 40],
 ];
 
 /** Scroll-bar part bitmaps (named resources), 16 wide; each pixel is `fill + row % 2`. */
@@ -185,4 +192,100 @@ export function template(fields: Partial<Template> & Pick<Template, 'id' | 'page
     handlers: [],
     ...fields,
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Time and media
+
+/** A clock that moves only when the test says so; waits resolve when their time has come. */
+export class ManualClock implements Clock {
+  #now = 0;
+  #waiting: { at: number; resolve: () => void }[] = [];
+
+  now(): number {
+    return this.#now;
+  }
+
+  wait(ms: number): Promise<void> {
+    return new Promise((resolve) => this.#waiting.push({ at: this.#now + ms, resolve }));
+  }
+
+  /** Moves time on, resolving the waits that are due. */
+  advance(ms: number): void {
+    this.#now += ms;
+    const due = this.#waiting.filter((waiting) => waiting.at <= this.#now);
+    this.#waiting = this.#waiting.filter((waiting) => waiting.at > this.#now);
+    for (const waiting of due) waiting.resolve();
+  }
+}
+
+/** What the engine asked a {@link RecordingMedia} to do. */
+export type MediaCall =
+  | { readonly kind: 'stopAll'; readonly wasPlaying: boolean }
+  | { readonly kind: 'action'; readonly action: MediaAction; readonly target: MediaTarget }
+  | { readonly kind: 'animation'; readonly request: AnimationRequest }
+  | { readonly kind: 'control'; readonly request: ControlRequest }
+  | { readonly kind: 'pageClosed'; readonly page: PageInstance };
+
+/**
+ * Media for tests: records every call, plays nothing by itself. `playing` makes it report that
+ * something plays (until the next stop); animations end when the test calls {@link endAnimations},
+ * or at once with `endAtOnce`.
+ */
+export class RecordingMedia implements Media {
+  readonly calls: MediaCall[] = [];
+  playing = false;
+  endAtOnce = false;
+  #pending: { request: AnimationRequest; ended: () => void }[] = [];
+
+  isPlaying(): boolean {
+    return this.playing;
+  }
+
+  stopAll(): boolean {
+    const wasPlaying = this.playing;
+    this.calls.push({ kind: 'stopAll', wasPlaying });
+    this.playing = false;
+    this.#pending = [];
+    return wasPlaying;
+  }
+
+  runAction(action: MediaAction, target: MediaTarget): void {
+    this.calls.push({ kind: 'action', action, target });
+  }
+
+  playAnimation(request: AnimationRequest, ended: () => void): void {
+    this.calls.push({ kind: 'animation', request });
+    if (this.endAtOnce) ended();
+    else this.#pending.push({ request, ended });
+  }
+
+  control(request: ControlRequest): void {
+    this.calls.push({ kind: 'control', request });
+  }
+
+  pageClosed(page: PageInstance): void {
+    this.calls.push({ kind: 'pageClosed', page });
+  }
+
+  /** Animations started and not yet ended or stopped. */
+  get pending(): readonly AnimationRequest[] {
+    return this.#pending.map(({ request }) => request);
+  }
+
+  /** Ends the pending animations (those matching `which`), in the order they started. */
+  endAnimations(which: (request: AnimationRequest) => boolean = () => true): void {
+    const ending = this.#pending.filter(({ request }) => which(request));
+    this.#pending = this.#pending.filter(({ request }) => !which(request));
+    for (const { ended } of ending) ended();
+  }
+
+  /** The calls of one kind. */
+  of<K extends MediaCall['kind']>(kind: K): Extract<MediaCall, { kind: K }>[] {
+    return this.calls.filter((call): call is Extract<MediaCall, { kind: K }> => call.kind === kind);
+  }
+
+  clear(): void {
+    this.calls.length = 0;
+  }
 }

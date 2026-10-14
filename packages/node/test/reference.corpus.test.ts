@@ -10,7 +10,13 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectReachable, parsePageDatabase, type Page, type PageRef } from '@twtw/formats';
-import { createFramebuffer, DATABASE_PATH, Engine, type PageWindow } from '@twtw/engine';
+import {
+  createFramebuffer,
+  DATABASE_PATH,
+  Engine,
+  stalledAutostartMedia,
+  type PageWindow,
+} from '@twtw/engine';
 import { beforeAll, expect, it } from 'vitest';
 import { decodePng, DirectoryDataSource, indexedToRgb, type RgbImage } from '../src/index.ts';
 import { describeIfAvailable, discRoot, missingDiscFile, refRoot } from './disc.ts';
@@ -108,8 +114,12 @@ describeIfAvailable('matching Wine reference captures (disc)', missing, () => {
   });
 
   async function render(base: PageRef, popups: readonly PageRef[], presentation: 'win31' | 'wine') {
-    const engine = await Engine.load(source, { startPage: base, presentation });
-    for (const ref of popups) await engine.openPopup(ref);
+    const engine = await Engine.load(source, {
+      startPage: base,
+      presentation,
+      media: stalledAutostartMedia(),
+    });
+    for (const ref of popups) await engine.openPage(ref);
     const framebuffer = createFramebuffer();
     engine.render(framebuffer);
     return { engine, image: indexedToRgb(framebuffer, engine.palette) };

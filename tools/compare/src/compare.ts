@@ -1,6 +1,6 @@
 /**
- * Comparing one reference capture: replay its action path in the engine (Wine presentation),
- * render, and diff against the capture with the expected differences masked.
+ * Comparing one reference capture: replay its action path in the engine (Wine presentation) as
+ * real clicks, render, and diff against the capture with the expected differences masked.
  */
 import { readFileSync } from 'node:fs';
 import type { PageRef, Rect } from '@twtw/formats';
@@ -9,6 +9,7 @@ import {
   CLIENT_WIDTH,
   createFramebuffer,
   Engine,
+  stalledAutostartMedia,
   type DataSource,
   type IndexedImage,
   type PageInstance,
@@ -25,17 +26,7 @@ import {
 } from './diff.ts';
 import { animationCatalog, deriveMasks, WINE_VISIBLE, type AnimationCatalog } from './masks.ts';
 import type { Reference } from './references.ts';
-import {
-  applyEffect,
-  engineState,
-  formatClickStep,
-  nextState,
-  sameEffect,
-  sameState,
-  showState,
-  stepEffect,
-  type ScreenState,
-} from './step-dispatch.ts';
+import { engineState, replayStep, sameState, showState, type ScreenState } from './state.ts';
 
 export type Status = 'exact' | 'explained' | 'unexplained' | 'error';
 
@@ -91,7 +82,13 @@ export class Comparator {
   }
 
   static async open(source: DataSource): Promise<Comparator> {
-    const engine = await Engine.load(source, { presentation: 'wine', startPage: null });
+    // Autostart animations never end, as they stall under Wine: the auto-advance candidates
+    // below decide whether the capture still shows the page or the one it moves on to.
+    const engine = await Engine.load(source, {
+      presentation: 'wine',
+      startPage: null,
+      media: stalledAutostartMedia(),
+    });
     return new Comparator(engine, animationCatalog(source));
   }
 
@@ -127,29 +124,20 @@ export class Comparator {
       }
       if (!sidecar.settle.settled) notes.push('the reference never settled');
 
-      // Replay the action path.
-      const db = this.engine.content.database;
-      let state: ScreenState = { base: sidecar.actionPath.start, popups: [] };
-      await showState(this.engine, state);
+      // Replay the action path: a direct start, then a press and release at each recorded point.
+      await showState(this.engine, { base: sidecar.actionPath.start, popups: [] });
+      let beforeLast: ScreenState | null = null;
+      let lastKind: string | null = null;
       for (const step of sidecar.actionPath.steps) {
-        const effect = stepEffect(db, state, step);
-        if (!sameEffect(effect, step.effect)) {
-          throw new Error(
-            `step ${formatClickStep(step)}: the database gives ${JSON.stringify(effect)}, ` +
-              `refcapture recorded ${JSON.stringify(step.effect)}`,
-          );
-        }
-        await applyEffect(this.engine, effect);
-        state = nextState(db, state, effect);
+        beforeLast = engineState(this.engine);
+        const replayed = await replayStep(this.engine, step);
+        lastKind = replayed.kind;
+        if (replayed.note !== null) notes.push(replayed.note);
       }
-      const shown = engineState(this.engine);
-      if (shown === null || !sameState(shown, state)) {
-        throw new Error(`the engine shows ${JSON.stringify(shown)}, expected ${JSON.stringify(state)}`);
-      }
-      if (!sameState(state, sidecar.expectedState)) {
-        notes.push(
-          `replayed state ${JSON.stringify(state)} differs from refcapture's prediction ` +
-            `${JSON.stringify(sidecar.expectedState)}`,
+      const state = engineState(this.engine);
+      if (state === null || !sameState(state, sidecar.expectedState)) {
+        throw new Error(
+          `the clicks lead to ${JSON.stringify(state)}, refcapture expected ${JSON.stringify(sidecar.expectedState)}`,
         );
       }
       const changing =
@@ -159,6 +147,7 @@ export class Comparator {
 
       // The page as replayed; when it should have moved on by itself, Wine's stall explains it.
       const stalls = sidecar.settledDiffersFromRequested;
+      let navStall: Candidate | null = null;
       const candidates: Candidate[] = [
         await this.#candidate(image, area, referenceSize, { stalled: stalls, arrivedFrom: [], changing }),
       ];
@@ -172,13 +161,36 @@ export class Comparator {
           await this.#candidate(image, area, referenceSize, { stalled: false, arrivedFrom, changing }),
         );
       }
+      if (
+        lastKind === 'navHotspot' &&
+        beforeLast !== null &&
+        changing !== null &&
+        changing.right <= NAV_BAR_WIDTH &&
+        !sameState(beforeLast, state)
+      ) {
+        // Or the state before a last navigation click whose button animation Wine stalled (it was
+        // still cycling when captured): the page change it waits for never came.
+        await showState(this.engine, beforeLast);
+        navStall = await this.#candidate(image, area, referenceSize, {
+          stalled: false,
+          arrivedFrom: [],
+          changing,
+        });
+        candidates.push(navStall);
+      }
       const best = candidates.reduce((a, b) =>
         b.diff.unexplained < a.diff.unexplained ||
         (b.diff.unexplained === a.diff.unexplained && b.diff.differing < a.diff.differing)
           ? b
           : a,
       );
-      const autoAdvance = !stalls ? 'none' : best === candidates[0] ? 'stalled' : 'arrived';
+      const autoAdvance =
+        !stalls || best === navStall ? 'none' : best === candidates[0] ? 'stalled' : 'arrived';
+      if (best === navStall) {
+        notes.push(
+          "Wine stalled the last navigation button's animation: the reference shows the page before that click",
+        );
+      }
       const { diff, masks } = best;
       const status: Status =
         diff.differing === 0 ? 'exact' : diff.unexplained === 0 ? 'explained' : 'unexplained';
@@ -254,6 +266,9 @@ export class Comparator {
     return { state: engineState(this.engine), ours, masks, diff };
   }
 }
+
+/** The navigation bar's width: a stalled button animation cycles inside it. */
+const NAV_BAR_WIDTH = 94;
 
 interface Candidate {
   readonly state: ScreenState | null;

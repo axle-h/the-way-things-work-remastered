@@ -19,7 +19,7 @@ Open `vendor/compare/index.html`: totals, the expected differences by reason, an
 
 ## What one comparison does
 
-1. **Replay.** Show the capture's start page, then apply each click step. The engine has no input dispatch yet, so `src/step-dispatch.ts` reads what the clicked object does from the database (the first page action of its click handlers, or the NavPanel button's page) and calls `changePage`, `openPopup` or `closePopup`. A click on the base page while a popup is open only closes the popup, and a ChangePage to a base page closes the popups (both seen under Wine). The effect must agree with the one refcapture recorded, and the final state with its prediction; otherwise the capture is an error. Phase 4 replaces this module with the engine's own hit-testing and dispatch.
+1. **Replay** (`src/state.ts`). Start directly at the capture's start page (empty history, as refcapture's patched start), then replay each click step through the engine's own input: a press and a release at the step's recorded `clientPoint`. The point must hit the object the step names (`page:panel:object`), and the final state must be the one refcapture expected; otherwise the capture is an error. Autostart animations never end in the replay, as they stall under Wine (the auto-advance candidates below handle pages that should move on); all other animations, such as the navigation buttons', end at once.
 2. **Render** with the `wine` presentation (popup placement, shadow over white, nearest-colour captions) and convert through the master palette.
 3. **Diff** the client area: 638×459, or 634×454 when the capture is black beyond Wine's own client (as all current captures are), or the overlap with an older 634×454 capture.
 4. **Classify** every differing pixel by the first mask that covers it (`src/masks.ts`), derived from the database, the engine's state and the sidecar. Anything else is unexplained.
@@ -39,6 +39,8 @@ Animation masks are per pixel: a difference counts as explained only where the r
 
 **Auto-advance.** For a capture whose page should move on by itself (`settledDiffersFromRequested`), two renderings are tried: the page itself with its animation stalled, and the page it moves on to with what the animation leaves behind. The one with fewer unexplained pixels wins, and the result says `stalled` or `arrived`.
 
+**Navigation stall.** When the last step is a navigation button and the capture was still cycling inside the nav bar (`changingRect`), Wine may have stalled the button's press-in animation, so the page change it waits for never came. The state before that click is tried too, and the result notes it when it wins.
+
 **Status** per capture: `exact` (no differing pixel), `explained` (all explained), `unexplained`, or `error` (the replay failed).
 
 ## Output
@@ -54,4 +56,4 @@ Each result in `results.json` has the status, the differing and unexplained pixe
 
 ## Tests
 
-`pnpm test` runs the unit tests on a synthetic disc (`src/test-disc.ts`, built with `@twtw/formats/testing` and `@twtw/engine/testing`): the diff and its classification, bounding boxes, the masks, the step dispatch and whole comparisons. `src/acceptance.corpus.test.ts` compares the Phase 2 acceptance set (title still page, Workshop, A–Z machine, A–Z "A", Airplane and the Airplane popup paths) and requires zero unexplained pixels; it skips without the disc or the captures.
+`pnpm test` runs the unit tests on a synthetic disc (`src/test-disc.ts`, built with `@twtw/formats/testing` and `@twtw/engine/testing`): the diff and its classification, bounding boxes, the masks and whole comparisons, including replayed clicks. `src/acceptance.corpus.test.ts` compares the Phase 2 acceptance set (title still page, Workshop, A–Z machine, A–Z "A", Airplane and the Airplane popup paths) and requires zero unexplained pixels; it skips without the disc or the captures.

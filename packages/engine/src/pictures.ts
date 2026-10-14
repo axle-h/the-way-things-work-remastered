@@ -14,8 +14,12 @@ export const ProgramBitmap = {
   animationPlay: 116,
   animationProgress: 159,
   cancel: 170,
+  /** The CancelButton while pressed (behaviour.md §3). */
+  cancelPressed: 171,
   lampOn: 172,
   lampOff: 173,
+  /** The A–Z dial's pressed "go" button (behaviour.md §7). */
+  dialGo: 352,
 } as const;
 
 /** Default budget for decoded `.DIB` files kept for reuse (pictures in use are held by pages). */

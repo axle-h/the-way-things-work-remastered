@@ -1,11 +1,15 @@
-import { DIAL_POSITIONS, Engine } from '@twtw/engine';
+import { DIAL_POSITIONS, Engine, stalledAutostartMedia } from '@twtw/engine';
 import { describe, expect, it } from 'vitest';
 import type { Mask } from './diff.ts';
 import { animationCatalog, deriveMasks, type MaskInput } from './masks.ts';
-import { showState, type ScreenState } from './step-dispatch.ts';
+import { showState, type ScreenState } from './state.ts';
 import { CONTENT, disc, FILL, INTRO_FRAMES, MOVIE_FRAME, ref } from './test-disc.ts';
 
-const engine = await Engine.load(disc.source, { presentation: 'wine', startPage: null });
+const engine = await Engine.load(disc.source, {
+  presentation: 'wine',
+  startPage: null,
+  media: stalledAutostartMedia(),
+});
 const animations = animationCatalog(disc.source);
 
 /** The masks for a state, against a 638×459 reference. */

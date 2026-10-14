@@ -9,6 +9,7 @@
 
 body {
   margin: 0;
+  overscroll-behavior: none;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -22,6 +23,13 @@ body {
   display: block;
   background: #000;
   image-rendering: pixelated;
+  /* The stage takes every touch itself: no double-tap zoom, pinch, panning or long-press menu
+     (docs/PLAN.md §3, "Responsive input"). */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Dev overlay: the pages on screen and any loading problems. */

@@ -23,8 +23,10 @@ import type { IndexedImage } from './screen.ts';
 
 /** What a display object draws at rest; `null` for objects that draw nothing (hotspots etc.). */
 export type ObjectLook =
-  /** A picture copied opaque at the rectangle's top-left: Bitmap, CancelButton, AnimationControl. */
+  /** A picture copied opaque at the rectangle's top-left: Bitmap, AnimationControl. */
   | { readonly kind: 'picture'; readonly picture: IndexedImage | null }
+  /** The CancelButton: its picture at rest, and the one drawn while it is pressed. */
+  | { readonly kind: 'button'; readonly picture: IndexedImage | null; readonly pressed: IndexedImage | null }
   /** The rectangle's size of the picture, from its top row (scroll position 0). */
   | { readonly kind: 'scrollBitmap'; readonly picture: IndexedImage | null }
   /** The eight part bitmaps of a scroll bar, in data order (rendering.md §5). */
@@ -41,16 +43,23 @@ export interface PlacedObject {
   readonly look: ObjectLook | null;
 }
 
-/** The A–Z machine dial's state (rendering.md §6). */
+/** The A–Z machine dial's state (rendering.md §6, behaviour.md §7). */
 export interface DialState {
   /** Current letter, 0 = A. */
   letter: number;
   /** Lamp state: the program alternates it every second, starting with "on" after the first tick. */
   lampOn: boolean;
+  /** The "go" animation is running: the dial ignores presses. */
+  going: boolean;
+  /** "Go" was pressed: the pressed button shows until the page changes. */
+  goPressed: boolean;
+  /** The lamp has been drawn since "go" was pressed, so it shows over the pressed button. */
+  lampOverGo: boolean;
   /** Each letter's still picture, `null` if it failed to load. */
   readonly letters: readonly (IndexedImage | null)[];
   readonly lampOnPicture: IndexedImage | null;
   readonly lampOffPicture: IndexedImage | null;
+  readonly goPicture: IndexedImage | null;
 }
 
 export type PanelSource =
@@ -107,6 +116,7 @@ const CONTROL_HEIGHT = 22;
 export const DIAL_POSITIONS = {
   letter: { x: 161, y: 101 },
   lamp: { x: 334, y: 350 },
+  go: { x: 320, y: 335 },
 } as const;
 
 /** Loads a page and everything it draws at rest. Throws if the page or its template is invalid. */
@@ -205,7 +215,15 @@ class ObjectLoader {
       }
       case 'cancelButton':
         // The button's picture is EXE bitmap 170; its three strings are unused (rendering.md §5).
-        return { object, rect, look: { kind: 'picture', picture: this.#resource(ProgramBitmap.cancel) } };
+        return {
+          object,
+          rect,
+          look: {
+            kind: 'button',
+            picture: this.#resource(ProgramBitmap.cancel),
+            pressed: this.#resource(ProgramBitmap.cancelPressed),
+          },
+        };
       case 'animationControl': {
         const placed =
           rect === null
@@ -235,9 +253,13 @@ class ObjectLoader {
     return {
       letter: 0,
       lampOn: false,
+      going: false,
+      goPressed: false,
+      lampOverGo: false,
       letters,
       lampOnPicture: this.#resource(ProgramBitmap.lampOn),
       lampOffPicture: this.#resource(ProgramBitmap.lampOff),
+      goPicture: this.#resource(ProgramBitmap.dialGo),
     };
   }
 

@@ -318,7 +318,7 @@ class Encoder {
         this.pageRef(action.page);
         break;
       case 'sendMessage':
-        w.i16(action.message).i16(action.parameter);
+        w.i16(action.target).i16(action.message);
         break;
       case 'playWave':
         this.str(action.file);

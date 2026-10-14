@@ -32,6 +32,7 @@ function drawObject(canvas: IndexedCanvas, { rect, look }: PlacedObject): void {
   if (rect === null || look === null) return;
   switch (look.kind) {
     case 'picture':
+    case 'button':
       if (look.picture !== null) canvas.draw(look.picture, rect.left, rect.top);
       break;
     case 'scrollBitmap':
@@ -72,10 +73,26 @@ export function drawScrollBar(
   if (down !== null) canvas.draw(down, rect.left, rect.bottom - down.height);
 }
 
-/** The A–Z dial's current letter picture and its lamp, after the normal panel paint. */
+/**
+ * The A–Z dial's current letter picture, its lamp and, after "go", the pressed go button, after
+ * the normal panel paint. The button covers the lamp until the lamp's next tick draws over it.
+ */
 function drawDial(canvas: IndexedCanvas, dial: DialState): void {
   const letter = dial.letters[dial.letter] ?? null;
   if (letter !== null) canvas.draw(letter, DIAL_POSITIONS.letter.x, DIAL_POSITIONS.letter.y);
   const lamp = dial.lampOn ? dial.lampOnPicture : dial.lampOffPicture;
-  if (lamp !== null) canvas.draw(lamp, DIAL_POSITIONS.lamp.x, DIAL_POSITIONS.lamp.y);
+  const drawLamp = (): void => {
+    if (lamp !== null) canvas.draw(lamp, DIAL_POSITIONS.lamp.x, DIAL_POSITIONS.lamp.y);
+  };
+  const drawGo = (): void => {
+    if (dial.goPressed && dial.goPicture !== null)
+      canvas.draw(dial.goPicture, DIAL_POSITIONS.go.x, DIAL_POSITIONS.go.y);
+  };
+  if (dial.lampOverGo) {
+    drawGo();
+    drawLamp();
+  } else {
+    drawLamp();
+    drawGo();
+  }
 }

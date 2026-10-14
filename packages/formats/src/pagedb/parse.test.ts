@@ -188,7 +188,7 @@ const white = { red: 255, green: 251, blue: 240 };
 function everyAction(ref: RefOf): Action[] {
   return [
     { kind: 'openPage', page: ref('other'), unknown1: 1 },
-    { kind: 'sendMessage', message: 181, parameter: 59 },
+    { kind: 'sendMessage', target: 181, message: 59 },
     { kind: 'changePage', page: null, unknown1: 0 },
     {
       kind: 'playWave',

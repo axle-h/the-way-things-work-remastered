@@ -17,6 +17,11 @@ export interface Presentation {
   readonly name: PresentationName;
   /** The main window's outer top-left relative to its client area's top-left (page (0,0)). */
   readonly frameOffset: Point;
+  /**
+   * Where page (0,0) is on the screen. Only the zoom effect needs it: it interpolates in screen
+   * coordinates, truncating each product (behaviour.md §4.2).
+   */
+  readonly clientScreenOrigin: Point;
   /** `GetSystemMetrics(SM_CYCAPTION)`, added to a popup's position when it opens. */
   readonly captionHeight: number;
   /** The caption strip's frame colour, and the active and inactive caption fill. */
@@ -38,6 +43,8 @@ export type PresentationName = 'win31' | 'wine';
 export const WIN31: Presentation = {
   name: 'win31',
   frameOffset: { x: -1, y: -20 },
+  // The 640×480 main window is centred on a 640×480 screen.
+  clientScreenOrigin: { x: 1, y: 20 },
   captionHeight: 20,
   frameColour: rgb(0x000000),
   activeCaptionColour: rgb(0x000080),
@@ -58,6 +65,8 @@ export const WIN31: Presentation = {
 export const WINE: Presentation = {
   name: 'wine',
   frameOffset: { x: -3, y: -23 },
+  // Where the reference captures found the client area (tools/refcapture).
+  clientScreenOrigin: { x: 195, y: 195 },
   captionHeight: 20,
   frameColour: rgb(0x9e9e9e),
   activeCaptionColour: rgb(0x3296fa),
@@ -100,13 +109,21 @@ export interface PageWindow {
   readonly caption: number;
   /** Drop-shadow width. */
   readonly shadow: number;
+  /**
+   * The window that owns this one: the window of the page that was active when it opened, another
+   * popup or `null` for the main window (behaviour.md §4.1). Closing a window closes those it owns.
+   */
+  readonly owner: PageWindow | null;
+  /** Whether it takes the focus when it opens or is pressed (template no-focus flag 0). */
+  readonly focusable: boolean;
 }
 
 /** Template fields that shape a window (rendering.md §7.1). */
-export function windowStyle(template: Template): { caption: number; shadow: number } {
+export function windowStyle(template: Template): { caption: number; shadow: number; focusable: boolean } {
   return {
     caption: template.unknown3 !== 0 ? CAPTION_STRIP_HEIGHT : 0,
     shadow: Math.max(0, template.unknown4),
+    focusable: template.unknown5 === 0,
   };
 }
 
@@ -146,7 +163,10 @@ export function windowPosition(
 }
 
 /** The window's full size: picture plus shadow, by caption plus picture plus shadow. */
-export function windowSize(window: PageWindow): { width: number; height: number } {
+export function windowSize(window: Pick<PageWindow, 'page' | 'caption' | 'shadow'>): {
+  width: number;
+  height: number;
+} {
   return {
     width: window.page.width + window.shadow,
     height: window.caption + window.page.height + window.shadow,

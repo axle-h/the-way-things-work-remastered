@@ -306,7 +306,7 @@ function finishedChangePage(object: AnimatedObject): boolean {
 
 /**
  * The AnimationControls a panel's on_open SENDMESSAGE handlers address: the control whose object
- * id is the message's first value (181 on the disc), or every control of the panel if none is.
+ * id is the message's target (181 on the disc), or every control of the panel if none is.
  */
 function startedControls(panel: PanelInstance) {
   const messages = (panel.panel?.handlers ?? [])
@@ -317,9 +317,7 @@ function startedControls(panel: PanelInstance) {
   const controls = panel.objects.flatMap(({ object, rect }) =>
     object.kind === 'animationControl' ? [{ object, rect }] : [],
   );
-  const addressed = controls.filter(({ object }) =>
-    messages.some((message) => message.message === object.id),
-  );
+  const addressed = controls.filter(({ object }) => messages.some((message) => message.target === object.id));
   return addressed.length > 0 ? addressed : controls;
 }
 
