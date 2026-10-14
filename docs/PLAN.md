@@ -1,6 +1,6 @@
 # Plan: The Way Things Work — remastered engine
 
-Status: **draft, awaiting Alex's approval. Do not start implementation until approved.**
+Status: **approved by Alex (2026-10-14). Work through the phases in order.**
 
 ## 1. Goal
 
@@ -52,8 +52,8 @@ What exists already:
 | Original program | `TWTW.EXE` is read only as an NE resource container (palette, cursors, scrollbar bitmaps); it is never executed | Clean-room rule 6 |
 | Audio | Web Audio. Decode MS-ADPCM and 8-bit PCM to `AudioBuffer`s in TS | Precise scheduling; animation frames are synced to the audio clock |
 | Scaling | See "Scaling rules" | Lose no detail; never smooth |
-| Build/dev | Vite (app), Vitest (tests), npm workspaces | Standard, fast, minimal configuration |
-| Serving | A small Node static server: `apps/web/dist` plus `/data` → the extracted disc. The same server runs locally (`npm run serve`) and in the container | One code path for dev, LAN and k3s |
+| Build/dev | Vite (app), Vitest (tests), **pnpm** workspaces | pnpm for supply-chain safety (see "Dependency policy"); Vite and Vitest are standard, fast and need little configuration |
+| Serving | A small Node static server: `apps/web/dist` plus `/data` → the extracted disc. The same server runs locally (`pnpm serve`) and in the container | One code path for dev, LAN and k3s |
 | Deployment | Container image on GHCR, built by GitHub Actions with no data in it. k3s with traefik + cert-manager (Let's Encrypt), and the disc data on a volume synced from this machine. The hostname is kept out of git. This mirrors the Encarta project's `k8s/` | Same proven setup as the Encarta deployment |
 | Desktop | Electron, wrapping the same web build, with the ISO `DataSource` and native clipboard and print. Unsigned CI builds for Windows, macOS and Linux | Consistent Chromium rendering and audio everywhere; publishable without content |
 
@@ -70,6 +70,15 @@ All decisions are made in **device pixels**, not CSS pixels:
 3. **Optional "fill" mode** (a user setting, default off): non-integer nearest-neighbour to fill more of the screen. Pixels become slightly uneven but nothing is blurred.
 4. **Hit-testing** maps pointer coordinates back through the same transform. Pointer events are converted to 640×480 content coordinates in exactly one place.
 5. **Portrait phones:** show a friendly "turn your device sideways" screen rather than a tiny 4:3 picture. Tablets in portrait still render (letterboxed).
+
+### Dependency policy
+
+**pnpm** only, never npm or yarn. Pin the pnpm version with `packageManager` in the root `package.json` (via Corepack). Keep the dependency tree small; this project needs few runtime dependencies.
+- **Lockfile:** commit `pnpm-lock.yaml`. CI and the container build use `pnpm install --frozen-lockfile`.
+- **Install scripts:** dependency lifecycle scripts stay blocked (pnpm's default). Allow-list only what genuinely needs a build step (e.g. `esbuild`, `electron`) in `pnpm-workspace.yaml`, and review each addition.
+- **Release age:** set `minimumReleaseAge` (e.g. one week) in `pnpm-workspace.yaml`, so freshly published, possibly compromised versions are not picked up.
+- **Exact versions:** add dependencies with exact versions (`save-exact`), and update them deliberately.
+- **Audit:** run `pnpm audit` in CI.
 
 ### Responsive input
 
@@ -125,11 +134,11 @@ Investigate early: the original has a "Go to page" dialog (`WM_COMMAND` 0x69) an
 Each phase ends with its acceptance criteria met, tests passing, and specs in `docs/formats/` updated **before or with** the code (clean-room checklist). Commit only when Alex asks.
 
 ### Phase 0 — Bootstrap
-- npm workspaces, TypeScript strict, Vitest, Vite, ESLint and Prettier (minimal config).
-- `tools/data`: `npm run data` extracts the ISO from `vendor/` to `vendor/cd` (via `7z` for now) if missing, then writes `vendor/cd/manifest.json`.
+- pnpm workspaces with the dependency policy from §3, TypeScript strict, Vitest, Vite, ESLint and Prettier (minimal config).
+- `tools/data`: `pnpm data` extracts the ISO from `vendor/` to `vendor/cd` (via `7z` for now) if missing, then writes `vendor/cd/manifest.json`.
 - The dev server serves `/data`.
 - A lint rule or check that fails on decompiler identifiers (`FUN_`, `DAT_`, `uVar`, …) in `packages/` and `apps/`.
-- **Done when:** `npm test` runs, `npm run dev` shows a blank 640×480 canvas, and `/data/manifest.json` loads.
+- **Done when:** `pnpm test` runs, `pnpm dev` shows a blank 640×480 canvas, and `/data/manifest.json` loads.
 
 ### Phase 1 — `packages/formats`
 Implement from `docs/formats/`, with unit tests on synthetic data first, then corpus and oracle tests:
@@ -139,7 +148,7 @@ Implement from `docs/formats/`, with unit tests on synthetic data first, then co
 - PICS → header, sound format, chunks (rect, PCM, unpacked indices), and timing.
 - WAV: RIFF parser, MS-ADPCM decoder, 8-bit PCM → Float32.
 - NE resource reader for `TWTW.EXE` (palette, cursors, bitmaps for `@NAME` references), written from the public NE format documentation.
-- ISO 9660 reader (primary volume descriptor, directories, file extents). Then switch `npm run data` to it and drop the `7z` dependency.
+- ISO 9660 reader (primary volume descriptor, directories, file extents). Then switch `pnpm data` to it and drop the `7z` dependency.
 - **Done when:** §5.1–5.3 pass over the whole disc.
 
 ### Phase 2 — Reference capture harness

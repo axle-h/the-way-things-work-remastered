@@ -4,7 +4,7 @@ A clean-room TypeScript re-implementation of the engine behind Dorling Kindersle
 
 **This repository contains no DK or Microsoft code or content. You need your own copy of the CD.**
 
-- **Status:** planning. The data formats are reverse engineered and specified, and the original runs in two reference environments. The engine itself is not written yet.
+- **Status:** plan approved; implementation starting. The data formats are reverse engineered and specified, and the original runs in two reference environments. The engine itself is not written yet.
 - **Plan:** [docs/PLAN.md](docs/PLAN.md), the step-by-step roadmap.
 - **Clean-room policy:** [docs/CLEAN_ROOM.md](docs/CLEAN_ROOM.md), how the formats are learned without copying code.
 - **Format specifications:** [docs/formats/](docs/formats/README.md), every format on the disc and its status.
@@ -41,7 +41,7 @@ analysis/decompiled/     Ghidra project and output                       (gitign
 ## Requirements
 
 - Your disc image in `vendor/`, e.g. `vendor/Way Things Work, The (1994)(Dorling Kindersley).iso`.
-- Node.js 22+ for the remake (once implemented).
+- Node.js 22+ and pnpm for the remake (once implemented).
 - `7z` to extract the ISO, and `python3`.
 - Optional, for the reference environments: Wine with Win16 support (e.g. Fedora's wine 11), `dosbox-x`, `mtools`, `ffmpeg`, `Xwayland`. Ghidra for further analysis.
 

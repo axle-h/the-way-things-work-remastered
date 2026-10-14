@@ -17,13 +17,13 @@ Read first: `docs/PLAN.md` (plan, phases, status), `docs/CLEAN_ROOM.md` (rules f
 - **No disc bytes in git.** `vendor/` (gitignored) holds the ISO, the extracted disc (`vendor/cd`), the Wine prefix, the DOSBox-X disk images, patched binaries and reference captures. Tests, fixtures, snapshots and docs must not contain disc-derived content. Unit tests use synthetic data. Corpus tests read `vendor/cd` (or `$TWTW_CD`) and skip when it is absent.
 - **The original program is data, never code**, in the remake. Parse `TWTW.EXE` as an NE resource container only. It runs only in the reference environments.
 - **Git is read-only** unless Alex explicitly asks: no commit, reset, rebase, etc.
-- **Do not start a plan phase Alex has not approved.** `docs/PLAN.md` says the current status.
+- **Follow the approved plan** (`docs/PLAN.md`): work through the phases in order, and check with Alex before changing scope or architecture.
 - **Kill only processes you started.** `pkill -f winevdm` matches your own shell; use `pkill -f '[w]inevdm.exe'`.
 - **Never publish the deployment hostname**, nor Alex's other hostnames or home IP. They must not appear anywhere in the repo, commit messages or CI output. `k8s/host.local` and `$TWTW_HOST` stay out of git.
 
 ## Conventions
 
-- **Stack:** TypeScript strict, npm workspaces, Vitest, Vite.
+- **Stack:** TypeScript strict, **pnpm** workspaces (never npm or yarn; follow PLAN §3 "Dependency policy": frozen lockfile, install scripts blocked unless allow-listed, minimum release age, exact versions), Vitest, Vite.
 - **DOM-free core:** `packages/formats` and `packages/engine` must not use DOM APIs, so they run headless in Node for pixel tests.
 - **Indexed rendering:** the engine renders into an 8-bit indexed 640×480 framebuffer; conversion to RGBA happens only in `apps/web` or the compare tool.
 - **Original files only:** decode the original disc files at runtime and do not add asset conversion pipelines.
