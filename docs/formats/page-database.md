@@ -1,6 +1,6 @@
 # Page database (`DKCODE/TWTW.PNG`)
 
-Despite the extension this is not an image. It is the compiled ("scrunged", in DK's terminology) form of a text page-description language: the whole application's screens, hotspots and navigation. The release program only reads this binary form. Status: structure **[V]**. A full parse lands exactly on every declared boundary, and following references reaches 1,657 pages and 4 shared panels. Those cover the page heap byte for byte, apart from 4 unreferenced popup pages, which also parse. Every media reference resolves to a file on the disc. Provenance: loaded by `1010:58ea`.
+Despite the extension this is not an image. It is the compiled ("scrunged", in DK's terminology) form of a text page-description language: the whole application's screens, hotspots and navigation. The release program only reads this binary form. Status: structure **[V]**. A full parse lands exactly on every declared boundary, and following references reaches 1,657 pages and 4 shared panels. Those cover the page heap byte for byte, apart from 4 unreferenced popup pages, which also parse. Every media reference resolves to a file on the disc. The TypeScript parser (`packages/formats/src/pagedb/`) agrees with the private oracle's output on every string, template, index entry, page, panel, object, handler and action. Provenance: loaded by `1010:58ea`.
 
 ## Primitives
 
@@ -13,6 +13,7 @@ All integers are **big-endian** (the original's stream reader assembles bytes mo
 | `pageref` | `u32` byte offset from the start of the page heap; `0xFFFFFFFF` = none |
 | `rect` | 4 × `i16`: left, top, right, bottom |
 | `rgb` | 3 × `i16`: red, green, blue (0–255) |
+| flag | `u16` presence flag: the optional block after it is present when it is 1. Every flag on the disc is 0 or 1 [V], so a parser may reject other values |
 
 ## File layout
 
@@ -25,7 +26,7 @@ All integers are **big-endian** (the original's stream reader assembles bytes mo
 | page heap offset | Page heap: pages and shared panels, addressed by `pageref` |
 
 ### String table
-`u16` count, then `count` entries of `u16 length` followed by that many bytes of Windows-1252 text (no terminator). On this disc: 4,334 strings, the first being the product title.
+`u16` count, then `count` entries of `u16 length` followed by that many bytes of Windows-1252 text (no terminator). The entries fill the declared length exactly [V]. On this disc: 4,334 strings, the first being the product title, with no duplicates [V] (so a string's index can be recovered from its text).
 
 ### Product record
 | Field | Type | Notes |
@@ -64,8 +65,15 @@ Page types share a template, which supplies common panels (for base pages: the n
 
 Candidate names for the unknown template fields [H], from keyword strings in the program: `ALWAYSACTIVE`, `OFFSET_ORIGIN`, `FIXED_SIZE`, `CENTRED`, `DROP_SHADOW_WIDTH`, `NOFOCUS`, `CAPTION`, `FRAME`.
 
+Values on the disc [V]:
+- Flags B and C are never set. Flag A is set, with the values 7 and 1, on the popup and index templates only.
+- The `u16` after flag A is always 0. Width and height are 0 except on one full-screen base template (638 × 459).
+- Of the four unknowns after flag B, the first is 1 on all templates but one popup template; the second is 0 on base templates and 4 or 8 on popup and index templates; the last two are 0.
+- List 1 is empty on base templates. On popup and index templates it holds panel ids of the main base template (content panel 1, navigation bar 849, frame pieces 387–389; two popup templates leave out 849). [H] these are the base page's panels that stay active or visible while the popup is open. List 2 is always empty.
+- Template ids are unique, and every page names a template that exists and has the same page type. A page supplies exactly the panels of its template's non-shared slots, in slot order: on this disc, one panel per page (the Display panel 1, or the AZDial panel 78 on the A–Z machine page).
+
 ### A–Z index
-Directly after the product record: `i16` count (1,857), then for each entry: `str` name, `i16` name length, `i16` (always 0), `pageref` target page, `i16` m, and m × `pageref` "see also" pages. It feeds the Index list box and the A–Z machine.
+Directly after the product record: `i16` count (1,857), then for each entry: `str` name, `i16` name length, `i16` (always 0), `pageref` target page, `i16` m, and m × `pageref` "see also" pages. It feeds the Index list box and the A–Z machine. The name length always equals the number of characters in the name [V]. The index ends exactly at the page heap offset [V].
 
 ## Page heap
 
@@ -81,9 +89,9 @@ Directly after the product record: `i16` count (1,857), then for each entry: `st
 | handlers | Handlers | |
 | has links | `u16` | if non-zero, 4 × `pageref` follow |
 
-Page types: **base** pages fill the screen and get the navigation bar and frame from their template. **Popup** pages are smaller pictures drawn over the current base page at their origin. One **index** page holds the alphabetical index. **Child** pages are defined but unused here. Counts on this disc: 397 base, 1,259 popup, 1 index. The meaning of the four link page refs is [H] (perhaps previous, next, up, see also). The startup page is the title screen.
+Page types: **base** pages fill the screen and get the navigation bar and frame from their template. **Popup** pages are smaller pictures drawn over the current base page at their origin. One **index** page holds the alphabetical index. **Child** pages are defined but unused here. Counts on this disc: 397 base, 1,259 popup, 1 index. The meaning of the four link page refs is [H] (perhaps previous, next, up, see also). Links are present on 149 of the 397 base pages and on no other page, and none of their refs is "none" [V]. The startup page is the title screen, a base page.
 
-A **shared panel** in the heap is an `i16` (ignored), followed by a Panel. Templates reference shared panels for the navigation bar and frame pieces.
+A **shared panel** in the heap is an `i16` (0 on the disc; ignored), followed by a Panel. Its panel type is not stored with it: it comes from the template's PanelRef that points at it [V]. Templates reference shared panels for the navigation bar (a NavPanel) and the three frame pieces (Display panels).
 
 ### Panel
 | Panel type | Name | Body |
@@ -91,6 +99,8 @@ A **shared panel** in the heap is an `i16` (ignored), followed by a Panel. Templ
 | 201 | Display | common panel body |
 | 202 | AZDial | common body, then 26 × `pageref` and 26 × `str` (one per letter) |
 | 203 | NavPanel | common body, then 9 × `i16` and 9 × `pageref` (one per navigation button) |
+
+AZDial [V]: each letter's `str` names an animation (`.ANI`) in the page's directory, e.g. `azaz0maa`; all 26 resolve. NavPanel [V]: the nine `i16` values are the ids of the panel's nine NavHotspot objects (the same set, though not in object order). [H] each `pageref` is the page its button leads to.
 
 Common panel body: `i16` panel id, `i16` object count, then (`i16` object type, Object) × count, then Handlers.
 
@@ -111,10 +121,17 @@ Every object starts with: `i16` id, `u16` flags; if `flags & 0x100` is clear, a 
 | 610 | ScrollBar (program name `ScrollBaa`) | same different base, then 8 × `str` part bitmaps (`@NAME` = bitmap resource in `TWTW.EXE`) | 6 |
 | 611 | AZAnimHotspot | `str` animation file, `i16` | 0 |
 
-Observed flag values [H]: Hotspots use 4 and 5. AnimHotspots use 0, 16, 32 and 64. 32 appears on the title animation and probably means "start automatically".
+Observed flag values [H]: Hotspots use 4 and 5 (and 1, once). AnimHotspots use 0, 16, 32 and 64. 32 appears on the title animation and probably means "start automatically". Flag 0x100 (no rectangle) never occurs on the disc [V].
+
+Values of the unnamed fields on the disc [V]:
+- Hotspot `i16`: always 0. AnimHotspot and NavHotspot `i16`: always 1.
+- AZHotspot: the first `i16` is always 0; the second runs from 0 to 28 across the A–Z machine's hotspots [H] (perhaps a position in a list).
+- AnimationControl: the second rect always equals the object's rect, and the second cursor equals its cursor. The two `u16` are 0, and 0 or 1. The last `i16` is always 59.
+- CancelButton: all three `str` are 0 (no string).
+- ScrollBar: the eight part bitmaps are all `@` resources. The second of the four `i16` is the id of the ScrollBitmap it scrolls, in the same panel. On a ScrollBitmap the same field is not an object id; its meaning is unknown.
 
 ### Handlers and actions
-Handlers: `i16` count, then for each: `u16` event, `i16` action count, then actions. Events: 1 open, 2 app activated, 3 close, 4 click, 5 before open, 6 finished (animation ended).
+Handlers: `i16` count, then for each: `u16` event, `i16` action count, then actions. Events: 1 open, 2 app activated, 3 close, 4 click, 5 before open, 6 finished (animation ended). Only events 1 (22 handlers), 4 (10,540) and 6 (191) occur on the disc [V].
 
 An action is an `i16` type followed by its fields. Names below are ours, with the program's own keyword in parentheses where it differs (useful when reading strings or captures):
 
@@ -134,8 +151,12 @@ An action is an `i16` type followed by its fields. Names below are ours, with th
 | 12 | ClosePage (`Closepage`) | `pageref` | 1 |
 | 13 | SeekPics | none | 0 |
 
+Values of the unnamed fields on the disc [V]: ChangePage's `u16` is always 0. OpenPage's `u16` is 0 (1,335 times) or 1 (823 times). PlayWave and PlayPics always carry −1, −1, 1, 1, 0 (one PlayWave ends in 1 instead of 0); because the third and fourth values are always equal, the data cannot confirm their order.
+
 Semantics [C]: ChangePage replaces the base page. OpenPage shows a popup over it. ClosePage closes one. PlayPics plays an animation over the current picture. PlayWave plays a sound. ProductOption invokes product-specific behaviour (the Options screen). Unnamed parameters [H]: candidate keywords include `INTERVAL`, `HIGHLIGHT`, `AUTOSTART`, `AUTOREWIND` and `LOADONDEMAND`. Transition names `none`, `zoom`, `wipeleft` and `wiperight` exist in the program, but where they are encoded has not been found.
 
 ## Resolving media files [V]
 
-Path = data root + page directory + file name + extension. The extension follows from the user: `.DIB` for Bitmap and ScrollBitmap, `.ANI` for animations (PlayPics, AnimHotspot, AnimationControl, NavHotspot), `.WAV` for PlayWave. A file name that contains `\` (e.g. `nav\framebot`) is relative to the data root instead. A name starting with `@` is a bitmap resource inside `TWTW.EXE`. Names are stored without extension and in mixed case (`AIRC0j`), while the disc's files are upper case, so lookups must ignore case.
+Path = data root + page directory + file name + extension. The extension follows from the user: `.DIB` for Bitmap, ScrollBitmap and ScrollBar parts, `.ANI` for animations (PlayPics, AnimHotspot, AnimationControl, NavHotspot, AZDial letters), `.WAV` for PlayWave. A file name that contains `\` (e.g. `nav\framebot`) is relative to the data root instead. A name starting with `@` is a bitmap resource inside `TWTW.EXE`. Names are stored without extension and in mixed case (`AIRC0j`), while the disc's files are upper case, so lookups must ignore case.
+
+Directories are stored with a leading and a trailing `\` (`\ARTICLE1\AIRP\`). Shared panels have no directory of their own; all their names contain `\`. Over all reachable pages and shared panels, 2,664 references resolve to disc files and 48 are `@` resources (the six ScrollBars' parts) [V]. The names in StopWave and StopPics (unused) identify something already playing, and CancelButton's strings are unknown, so neither is treated as a file reference.

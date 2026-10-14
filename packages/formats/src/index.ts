@@ -1,3 +1,5 @@
-// Decoders for the original disc formats, implemented from docs/formats/ in Phase 1.
+// Decoders for the original disc formats, implemented from docs/formats/.
 // This package is DOM-free so that it runs in Node as well as the browser.
-export {};
+export { ByteReader, FormatError, formatOffset, type ByteOrder, type ByteReaderOptions } from './reader.ts';
+export { decodeWindows1252, encodeWindows1252 } from './text.ts';
+export * from './pagedb/index.ts';

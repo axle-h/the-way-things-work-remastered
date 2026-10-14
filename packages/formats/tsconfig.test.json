@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Corpus and oracle tests read the local disc, so they may use Node; src/ stays DOM- and Node-free.
+    "lib": ["ES2024"],
+    "types": ["node"]
+  },
+  "include": ["test"]
+}
