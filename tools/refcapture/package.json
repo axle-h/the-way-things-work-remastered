@@ -1,0 +1,13 @@
+{
+  "name": "@twtw/tools-refcapture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "refcapture": "node src/main.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@twtw/formats": "workspace:*"
+  }
+}

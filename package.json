@@ -12,6 +12,7 @@
     "build": "pnpm --filter @twtw/web build",
     "serve": "node apps/server/src/main.ts",
     "data": "node tools/data/src/main.ts",
+    "refcapture": "node tools/refcapture/src/main.ts",
     "test": "vitest run",
     "typecheck": "pnpm -r --parallel typecheck",
     "lint": "eslint . && pnpm check:cleanroom",

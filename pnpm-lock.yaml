@@ -63,6 +63,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/formats
 
+  tools/refcapture:
+    dependencies:
+      '@twtw/formats':
+        specifier: workspace:*
+        version: link:../../packages/formats
+
 packages:
 
   '@cacheable/memory@2.2.0':

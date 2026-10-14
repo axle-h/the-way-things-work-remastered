@@ -154,6 +154,7 @@ Implement from `docs/formats/`, with unit tests on synthetic data first, then co
 - **Done when:** §5.1–5.3 pass over the whole disc.
 
 ### Phase 2 — Reference capture harness
+Status: **done** (2026-10-14). `pnpm refcapture` (`tools/refcapture/README.md`) captured the acceptance set and all 397 base pages into `vendor/ref/` at the Windows 3.1 client size of 638×459. Under Wine, animations stop after 2–3 s, so the 24 pages that should move on by themselves are flagged (`docs/reference-environments.md`, "Animations under Wine"). "Go to page" is dead in this release (`program.md`); the harness uses the startup-page patch instead.
 - `tools/refcapture` on top of `wine/run.sh`, using a nested Xwayland server, `ffmpeg x11grab` and XTEST input (`docs/reference-environments.md`). Locate and crop the 640×480 client area automatically.
 - Crawl strategy driven by the database; record action paths; capture a defined "settled" state (animations finished).
 - Investigate the "Go to page" / developer-mode shortcut.

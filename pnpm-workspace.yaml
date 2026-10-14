@@ -3,6 +3,7 @@ packages:
   - apps/*
   - tools/data
   - tools/cleanroom
+  - tools/refcapture
 
 # Dependency policy (docs/PLAN.md §3). pnpm 11 reads these settings from this file, not from .npmrc.
 # Do not resolve versions published less than a week ago (minutes).

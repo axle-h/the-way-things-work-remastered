@@ -5,7 +5,7 @@ import { join, relative, resolve } from 'node:path';
 import { scanText } from './scan.ts';
 
 const repoRoot = resolve(import.meta.dirname, '../../..');
-const defaultRoots = ['packages', 'apps', 'tools/data', 'tools/cleanroom'];
+const defaultRoots = ['packages', 'apps', 'tools/data', 'tools/cleanroom', 'tools/refcapture'];
 const skippedDirs = new Set(['node_modules', 'dist', 'coverage', '.vite']);
 const binaryExtensions = /\.(?:png|jpe?g|gif|ico|webp|woff2?|ttf|otf|wasm|zip|gz|iso)$/i;
 
