@@ -27,7 +27,9 @@ Provenance: window class registration `1018:86ce`, creation and placement `1010:
 - After the database loads, the window is moved so that it is centred on the screen. Its outer width is the product width (640). Its outer height is the product height plus the caption height minus 20, which is 480 under Windows 3.1, where the caption is 20 pixels tall.
 - **Windows 3.1** (DOSBox-X capture) [V]: outer window 640×480, with a 1-pixel border and a caption bar showing the system-menu box and the minimise arrow. The **client area is 638×459**. This size also appears in the data: the one full-screen base template is 638×459, and the title page's full-screen hotspot is (0,0)–(638,459). Page pixel (0,0) is client (0,0).
 - **Wine** [V]: Wine computes the size from its own system metrics, so the client area is only **634×454**. Columns 634–637 and rows 454–458 of the page are cut off; for example, the bottom of the navigation bar's Help button is missing. Page pixel (0,0) is still client (0,0): a Wine capture lines up with the DOSBox-X capture at offset (0,0).
-- Popups are separate top-level windows placed over the main window [V]. Under Wine the Options and Airplane popups have a thin blue caption strip with a system-menu box, plus a frame, around the picture. Whether Windows 3.1 draws the same strip is still to be checked [H]. Popups can be dragged by their non-client area: the window procedure runs its own drag loop with a focus rectangle (`1018:8782`, `WM_NCLBUTTONDOWN`) [C].
+- The window class's background brush is white, but the window procedure swallows `WM_ERASEBKGND`, so the background is never erased; the page's panels cover the whole client area [C].
+- Popups (and the index page) are separate top-level windows placed over the main window [V]. They are borderless `WS_POPUP` windows. The thin caption strip with its system-menu box and the stippled drop shadow that Wine shows around the picture are drawn by the program itself, not by Windows, so Windows 3.1 shows them too, in its own system colours [C][V]. Position, size and pixel layout are in `rendering.md` §7. Popups can be dragged by their caption strip: the window procedure runs its own drag loop with a focus rectangle (`1018:8782`, `WM_NCLBUTTONDOWN`) [C].
+- While the database loads, EXE bitmap 121 is shown as a splash in a borderless window centred on the screen (`1010:4714`) [C].
 
 ## Input [C]
 The window passes mouse and keyboard input to the current page. Click handlers fire on **mouse button release**. The page with focus is the topmost popup, if one is open, otherwise the base page. The mouse cursor changes to the cursor named by the object under the pointer (`Hand`, `Arrow`, or `normal` for the default). Under Wine the cursor is an X cursor and never appears in the window's pixels [V].
@@ -123,8 +125,22 @@ A type or resource id with bit 15 set is an integer (the low 15 bits). Otherwise
 ### Bitmaps [V]
 Bitmap resources are DIBs without a `BITMAPFILEHEADER` (`dib-and-palette.md`); all 37 decode, and the decoder's output matches Pillow's for every one.
 - The 8 scroll-bar parts are 16 pixels wide, uncompressed 8-bit with the shared 256-colour table; `THUMBTRACK`/`THUMBTRACKALT` are 270 pixels high, the others 16.
-- Most numbered bitmaps are 8-bit (uncompressed or RLE8) with the shared table in entries 10–245; bitmap 124 is the exception, with a different table. Bitmap 121 is a 640×480 RLE8 picture (presumably the loading splash [H]).
-- Bitmaps 2–6 and 10–12 are 16×16, 4-bit, with their own 16-colour tables; 150 and 153 are 8×8, 1-bit (black and white); 118 is 8-bit with a 13-colour table. Their indices refer to their own tables, not to the screen palette.
+- Most numbered bitmaps are 8-bit (uncompressed or RLE8) with the shared table in entries 10–245; bitmap 124 is the exception, with a different table. Bitmap 121 is a 640×480 RLE8 picture, the loading splash [C].
+- Bitmaps 2–6 and 10–12 are 16×16, 4-bit, with their own 16-colour tables; 150 and 153 are 8×8, 1-bit (black and white); 118 is 8-bit with a 13-colour table. The program ignores every bitmap's colour table and treats pixel values as master-palette indices (`dib-and-palette.md`) [C]; 150 and 153 are used only as a monochrome pattern.
+- Uses found in the drawing code [C] (`rendering.md`):
+
+  | Bitmaps | Use |
+  |---|---|
+  | 101, 115–120, 159 | AnimationControl strip parts |
+  | 121 | loading splash |
+  | 150, 153 | 50% checkerboard pattern for popup drop shadows |
+  | 170, 171 | CancelButton ("Cancel"), normal and probably pressed |
+  | 172, 173 | A–Z machine lamp, on and off |
+  | 168, 169 | drawn by the Index page's window code (`1030:4b68`), chosen by an item's selected state (Phase 6) |
+  | 352 | drawn by the A–Z dial code (`1020:abf2`), not at rest |
+  | 2–6, 10–12 | loaded into a table at `1030:ca56` (the end of the second range is [H]); use not followed |
+
+  No use was found for 124, 174 and 175.
 
 ### Cursors [V]
 A cursor group (type 12) is a directory: reserved u16 (0), type u16 (2 = cursor), count u16, then 14-byte entries: width u16, height u16 (twice the cursor height, as it covers both masks), planes u16, bit count u16, byte length u32, and the id u16 of the cursor (type 1) resource.

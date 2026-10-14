@@ -24,6 +24,8 @@ The disc is ISO 9660 (level 1, no Joliet or Rock Ridge), volume label `DKMMTWTW`
 | `SETUP.EXE`, `DKSETUP/`, `DKSTP/` | | Microsoft Setup Toolkit installer (`.MST` scripts are readable text) | [program.md](program.md) §Installation | [C] |
 | `DKCODE/README.TXT` | 1 | Plain text, user notes | n/a | |
 
+How the original draws pages from these files (client area, panels, objects at rest, popup windows with caption strip and drop shadow, the palette at runtime) is in [rendering.md](rendering.md): [C], with the base-page, popup and A–Z machine compositions [V] against Wine captures.
+
 Content directories: `TITLE`, `WORKSHOP`, `NAV`, `AZAZ` (A–Z dial), `ARTICLE1`–`3` (machines, one folder per four-letter topic code), `PRINCIPL` (principles of science), `INVENTOR`, `TIMELINE` (history), `GLOS` (glossary), `RELA` (related-topic pictures), `HELP`, `INDEX`, `OPTIONS`.
 
 File naming [H]: `<TOPC><n><kind>[<m><A|S>]`, where `TOPC` is the topic code and `n` the picture number. Kinds: `M` = main picture; `J`, `N`, `Z`, `X`, `R` = popup picture kinds. The suffix `A` marks an animation and `S` a sound for picture `m`. Example: `AIRP0M0A.ANI` is the first animation for the Airplane main picture.

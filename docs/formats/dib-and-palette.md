@@ -16,7 +16,7 @@ Facts checked over all 1,698 files by the corpus test and an independent decode 
 - Every RLE stream ends with an end-of-bitmap escape on its last two bytes; nothing follows it.
 - No file uses the delta escape, and no row ends early: every pixel is written.
 - 1,694 files have 2,835 pixels per metre and `biClrUsed` 0; 4 have 0 and 256. Neither field matters for decoding.
-- Pixels use the artwork entries 10–245 plus 0 (black on screen, in 1,695 files) and 255 (white, 1,695 files). One picture, `ARTICLE3/WINW/WINW0M.DIB`, also uses entry 2 for 985 pixels: white in its own table but dark green (`008000`) in the screen palette. What the original shows there is still to be checked in a reference environment [H].
+- Pixels use the artwork entries 10–245 plus 0 (black on screen, in 1,695 files) and 255 (white, 1,695 files). One picture, `ARTICLE3/WINW/WINW0M.DIB`, also uses entry 2 for 985 pixels: white in its own table but dark green (`008000`) in the screen palette. The program ignores the files' colour tables (see "How the program uses the pixels" below), so these pixels show dark green [C]. Confirm in DOSBox-X.
 
 ### Decoding rules in the remake
 - Output is one palette index per pixel, top-down, `width × height`, with no row padding. Uncompressed rows are padded to 4 bytes; a negative `biHeight` means the rows are stored top-down (not allowed with RLE).
@@ -25,6 +25,9 @@ Facts checked over all 1,698 files by the corpus test and an independent decode 
 - The colour table has `biClrUsed` entries, or `2^biBitCount` when it is 0. Each entry is stored blue, green, red, reserved; the remake keeps it as RGB triplets plus the reserved bytes.
 - RLE8 pixels that the stream never writes (skipped by a delta or an early end of line, or left when the data stops) are index 0. The public RLE8 description leaves them undefined (Windows in practice keeps what the destination held [H]), so 0 is just a defined value; the disc never relies on it (see above). Running out of data between two instructions ends the bitmap like an end-of-bitmap escape; running out inside an instruction is an error.
 - A run or absolute run that would cross the right edge or go past the last row is an error, as is RLE data longer than the file.
+
+### How the program uses the pixels [C]
+Before converting any bitmap (a `.DIB` file or an EXE bitmap resource) for display, the program replaces its colour table with the identity index list (0, 1, 2, …). It then converts it in palette-index mode (`DIB_PAL_COLORS`) with its own palette selected (`1010:dfc4`, `1010:e076`). A pixel value *v* therefore always means master-palette entry *v*, and no colour table on the disc is ever used for display. This also holds for the EXE's 4-bit and 13-colour bitmaps. The remake can copy indices directly. See `rendering.md` §4.
 
 ## One palette for everything [V]
 
@@ -49,4 +52,4 @@ Entries 10–245 of the resource equal those of the DIB colour table [V], so the
 | 8 | C0DCC0 | 254 | 00FFFF |
 | 9 | A6CAF0 | 255 | FFFFFF |
 
-Consistent with the reference environments: page backgrounds are white on real Windows 3.1 (DOSBox-X), and Wine shows the same once the resource carries these values. A pixel-exact comparison is still to do. Wine maps `PC_EXPLICIT` entries wrongly in true-colour mode, and backgrounds turn red (index 249), which is why `wine/patch_palette.py` exists.
+Consistent with the reference environments: page backgrounds are white on real Windows 3.1 (DOSBox-X), and Wine shows the same once the resource carries these values. Wine captures of base pages and a popup match pictures decoded with this palette pixel for pixel (`rendering.md` §9) [V]. When it creates its main window, the program forces entries 10–245 to `PC_NOCOLLAPSE`, which they already are, so logical entry *i* lands on system entry *i* [C]. Wine maps `PC_EXPLICIT` entries wrongly in true-colour mode, and backgrounds turn red (index 249), which is why `wine/patch_palette.py` exists.

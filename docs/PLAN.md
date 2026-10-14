@@ -226,11 +226,11 @@ Model this on the Encarta project (`~/projects/encarta/k8s/`, `.github/workflows
 
 ## 8. Known unknowns
 
-- Unnamed template, object and action fields: sound and animation action parameters, AnimationControl extras, the NavPanel's nine `i16` values, template flag blocks. Candidate meanings come from keywords in the program (`AUTOSTART`, `AUTOREWIND`, `LOADONDEMAND`, `CENTRED`, `DROP_SHADOW_WIDTH`, …).
-- The page link block.
+- Unnamed fields: sound and animation action parameters, AnimationControl extras. (Solved: the NavPanel's nine `i16` values, the template flag blocks and the object flags; see `page-database.md` and `rendering.md`.)
+- ~~The page link block.~~ Solved: the four links replace the targets of four navigation buttons (`page-database.md`).
 - The exact PICS frame timing rule.
 - What WordBox (660 instances) does.
-- Where the transitions are used.
+- ~~Where the transitions are used.~~ Found: ChangePage's `u16` is a panel transition id (always 0 on the disc), OpenPage's `u16` selects the zoom effect (`page-database.md`).
 - How the Index page and Options behave.
 - What exactly the original prints and copies.
 
