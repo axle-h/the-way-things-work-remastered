@@ -3,3 +3,5 @@
 export { ByteReader, FormatError, formatOffset, type ByteOrder, type ByteReaderOptions } from './reader.ts';
 export { decodeWindows1252, encodeWindows1252 } from './text.ts';
 export * from './pagedb/index.ts';
+export * from './audio/index.ts';
+export * from './pics/index.ts';

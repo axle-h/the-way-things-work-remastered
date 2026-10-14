@@ -19,7 +19,7 @@ The disc is ISO 9660, volume label `DKMMTWTW`, 2,337 files.
 | `DKCODE/TWTW.PNG` | 1 | Compiled page database (not an image) | [page-database.md](page-database.md) | [V] structure, some fields unnamed |
 | `*.DIB` | 1,698 | 8-bit BMP/DIB, RLE8-compressed, one shared palette | [dib-and-palette.md](dib-and-palette.md) | [V] |
 | `*.ANI` | 497 | DK "PICS" animation: interleaved PCM + packed dirty rectangles | [pics.md](pics.md) | [V] structure, [H] timing |
-| `*.WAV` | ~100 | RIFF WAVE, MS-ADPCM | [wav.md](wav.md) | [V] |
+| `*.WAV` | 100 | RIFF WAVE: 97 MS-ADPCM, 3 plain 8-bit PCM | [wav.md](wav.md) | [V] |
 | `DKCODE/MSACM.DRV`, `MSADPCM.ACM` | 2 | Windows ACM driver and ADPCM codec shipped for the original | n/a | not needed |
 | `SETUP.EXE`, `DKSETUP/`, `DKSTP/` | | Microsoft Setup Toolkit installer (`.MST` scripts are readable text) | [program.md](program.md) §Installation | [C] |
 | `DKCODE/README.TXT` | 1 | Plain text, user notes | n/a | |
