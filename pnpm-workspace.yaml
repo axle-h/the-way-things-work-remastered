@@ -1,0 +1,14 @@
+packages:
+  - packages/*
+  - apps/*
+  - tools/data
+  - tools/cleanroom
+
+# Dependency policy (docs/PLAN.md §3). pnpm 11 reads these settings from this file, not from .npmrc.
+# Do not resolve versions published less than a week ago (minutes).
+minimumReleaseAge: 10080
+# Add dependencies with exact versions.
+saveExact: true
+# Dependency lifecycle scripts are blocked unless listed here as true; review each addition.
+strictDepBuilds: true
+allowBuilds: {}

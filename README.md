@@ -4,7 +4,7 @@ A clean-room TypeScript re-implementation of the engine behind Dorling Kindersle
 
 **This repository contains no DK or Microsoft code or content. You need your own copy of the CD.**
 
-- **Status:** plan approved; implementation starting. The data formats are reverse engineered and specified, and the original runs in two reference environments. The engine itself is not written yet.
+- **Status:** Phase 0 (bootstrap) done: workspace, dev server and data preparation. The data formats are reverse engineered and specified, and the original runs in two reference environments. The engine itself is not written yet.
 - **Plan:** [docs/PLAN.md](docs/PLAN.md), the step-by-step roadmap.
 - **Clean-room policy:** [docs/CLEAN_ROOM.md](docs/CLEAN_ROOM.md), how the formats are learned without copying code.
 - **Format specifications:** [docs/formats/](docs/formats/README.md), every format on the disc and its status.
@@ -30,6 +30,12 @@ Correctness is checked screen by screen against the original program, which is r
 ```
 docs/                    plan, clean-room policy, reference environments
 docs/formats/            format specifications
+packages/formats/        DOM-free decoders for the disc formats
+packages/engine/         DOM-free engine (indexed framebuffer, data manifest)
+apps/web/                Vite web app (canvas)
+apps/server/             tiny static server: the built app plus /data
+tools/data/              `pnpm data`: extract the ISO and write the data manifest
+tools/cleanroom/         `pnpm check:cleanroom`: rejects decompiler identifiers
 tools/ghidra/            Ghidra headless helpers
 tools/explore/           exploration scripts (NE resource dumper)
 wine/                    run the original under Wine (with a palette fix)
@@ -41,9 +47,24 @@ analysis/decompiled/     Ghidra project and output                       (gitign
 ## Requirements
 
 - Your disc image in `vendor/`, e.g. `vendor/Way Things Work, The (1994)(Dorling Kindersley).iso`.
-- Node.js 22+ and pnpm for the remake (once implemented).
+- Node.js 24+ and pnpm (the version pinned in `package.json`, e.g. via `corepack enable`). Use pnpm, never npm or yarn.
 - `7z` to extract the ISO, and `python3`.
 - Optional, for the reference environments: Wine with Win16 support (e.g. Fedora's wine 11), `dosbox-x`, `mtools`, `ffmpeg`, `Xwayland`. Ghidra for further analysis.
+
+## Usage
+
+```
+pnpm install       # dependencies (CI uses --frozen-lockfile)
+pnpm data          # extract the ISO to vendor/cd if needed, write vendor/cd/manifest.json
+pnpm dev           # dev server at http://localhost:5173, with /data served from vendor/cd
+pnpm test          # all unit tests; corpus tests read vendor/cd (or $TWTW_CD) and skip without it
+pnpm lint          # ESLint and the clean-room identifier check
+pnpm typecheck
+pnpm format        # Prettier
+pnpm build && pnpm serve   # production build, served at http://127.0.0.1:8080 (PORT, HOST)
+```
+
+`$TWTW_CD` points the tools and servers at an extracted disc elsewhere; `$TWTW_ISO` picks the image when `vendor/` holds more than one.
 
 ## Running the original today
 

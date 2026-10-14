@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // DOM-free: no DOM lib and no ambient Node types, so browser and Node APIs fail to typecheck.
+    "lib": ["ES2024"],
+    "types": []
+  },
+  "include": ["src"]
+}

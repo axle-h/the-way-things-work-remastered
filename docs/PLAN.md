@@ -134,6 +134,7 @@ Investigate early: the original has a "Go to page" dialog (`WM_COMMAND` 0x69) an
 Each phase ends with its acceptance criteria met, tests passing, and specs in `docs/formats/` updated **before or with** the code (clean-room checklist). Commit only when Alex asks.
 
 ### Phase 0 — Bootstrap
+Status: **done** (2026-10-14).
 - pnpm workspaces with the dependency policy from §3, TypeScript strict, Vitest, Vite, ESLint and Prettier (minimal config).
 - `tools/data`: `pnpm data` extracts the ISO from `vendor/` to `vendor/cd` (via `7z` for now) if missing, then writes `vendor/cd/manifest.json`.
 - The dev server serves `/data`.

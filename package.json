@@ -1,0 +1,33 @@
+{
+  "name": "twtw-remastered",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@11.26.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @twtw/web dev",
+    "build": "pnpm --filter @twtw/web build",
+    "serve": "node apps/server/src/main.ts",
+    "data": "node tools/data/src/main.ts",
+    "test": "vitest run",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "lint": "eslint . && pnpm check:cleanroom",
+    "check:cleanroom": "node tools/cleanroom/src/main.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit": "pnpm audit"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.1",
+    "eslint": "10.12.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vite": "8.3.3",
+    "vitest": "5.0.3"
+  }
+}

@@ -1,0 +1,5 @@
+vendor/
+analysis/
+pnpm-lock.yaml
+# Prose is formatted by hand.
+*.md
