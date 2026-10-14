@@ -142,7 +142,7 @@ Status: **done** (2026-10-14).
 - **Done when:** `pnpm test` runs, `pnpm dev` shows a blank 640×480 canvas, and `/data/manifest.json` loads.
 
 ### Phase 1 — `packages/formats`
-Status: **in progress**. Done: the shared byte reader (`reader.ts`, both byte orders), Windows-1252 text, and the page database parser (`pagedb/`), with synthetic unit tests, a corpus test and the oracle comparison all passing. Next: DIB and palette, PICS, WAV, NE resources, ISO 9660.
+Status: **done** (2026-10-14). All decoders pass their synthetic, corpus and comparison tests over the whole disc: page database vs. the oracle JSON, PICS vs. the oracle's frames and sound, DIBs vs. Pillow, WAVs vs. ffmpeg, and the ISO reader vs. the 7z extraction. `pnpm data` now uses the ISO reader.
 Implement from `docs/formats/`, with unit tests on synthetic data first, then corpus and oracle tests:
 - Big-endian stream reader; page database with a typed model (product, templates, A–Z index, pages, panels, objects, handlers, actions). Keep unknown fields as `unknownN`; never drop data.
 - DIB (RLE8 and uncompressed 8-bit) → `{width, height, indices, palette}`.

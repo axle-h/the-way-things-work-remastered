@@ -48,7 +48,7 @@ analysis/decompiled/     Ghidra project and output                       (gitign
 
 - Your disc image in `vendor/`, e.g. `vendor/Way Things Work, The (1994)(Dorling Kindersley).iso`.
 - Node.js 24+ and pnpm (the version pinned in `package.json`, e.g. via `corepack enable`). Use pnpm, never npm or yarn.
-- `7z` to extract the ISO, and `python3`.
+- `python3`, for the reference environments and exploration scripts. `pnpm data` needs only Node.
 - Optional, for the reference environments: Wine with Win16 support (e.g. Fedora's wine 11), `dosbox-x`, `mtools`, `ffmpeg`, `Xwayland`. Ghidra for further analysis.
 
 ## Usage

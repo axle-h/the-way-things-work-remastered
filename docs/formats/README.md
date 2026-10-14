@@ -11,7 +11,7 @@ Addresses such as `1018:6810` are provenance pointers into `TWTW.EXE` (Ghidra `s
 
 ## Disc inventory
 
-The disc is ISO 9660, volume label `DKMMTWTW`, 2,337 files.
+The disc is ISO 9660 (level 1, no Joliet or Rock Ridge), volume label `DKMMTWTW`, 2,337 files: see [iso9660.md](iso9660.md) [V].
 
 | Files | Count | Format | Spec | Status |
 |---|---|---|---|---|

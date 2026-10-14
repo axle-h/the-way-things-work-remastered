@@ -7,3 +7,4 @@ export * from './audio/index.ts';
 export * from './pics/index.ts';
 export * from './dib/index.ts';
 export * from './ne/index.ts';
+export * from './iso9660/index.ts';
