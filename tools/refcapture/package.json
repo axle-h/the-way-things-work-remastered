@@ -8,6 +8,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@twtw/formats": "workspace:*"
+    "@twtw/formats": "workspace:*",
+    "@twtw/node": "workspace:*"
   }
 }

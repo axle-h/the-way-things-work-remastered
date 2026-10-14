@@ -2,9 +2,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PageDatabase, PageRef } from '@twtw/formats';
+import { decodePng } from '@twtw/node';
 import { STARTUP_NAME, type Environment, type Sidecar } from './capture.ts';
 import { refDir } from './paths.ts';
-import { decodePng } from './png.ts';
 import { basePages } from './targets.ts';
 
 export interface Failure {

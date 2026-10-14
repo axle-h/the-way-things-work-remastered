@@ -67,6 +67,18 @@ importers:
 
   tools/cleanroom: {}
 
+  tools/compare:
+    dependencies:
+      '@twtw/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@twtw/formats':
+        specifier: workspace:*
+        version: link:../../packages/formats
+      '@twtw/node':
+        specifier: workspace:*
+        version: link:../../packages/node
+
   tools/data:
     dependencies:
       '@twtw/engine':
@@ -81,6 +93,9 @@ importers:
       '@twtw/formats':
         specifier: workspace:*
         version: link:../../packages/formats
+      '@twtw/node':
+        specifier: workspace:*
+        version: link:../../packages/node
 
 packages:
 

@@ -161,6 +161,7 @@ Status: **done** (2026-10-14). `pnpm refcapture` (`tools/refcapture/README.md`) 
 - **Done when:** references exist for the title, the Workshop, the A–Z machine, the A–Z list for "A", the Airplane article and one Airplane popup. Then aim for every base page.
 
 ### Phase 3 — Static rendering
+Status: **done** (2026-10-14). `pnpm compare` (`tools/compare`) replays every capture headlessly and diffs it: 351 of 400 match exactly in the 634×454 area Wine paints, and the other 49 differ only for stated reasons (Wine's animation stall, playing movies, the A–Z lamp, Wine caption colours, transition leftovers). Windows 3.1 popup chrome is still unverified (no DOSBox-X captures yet).
 - `DataSource` interface + HTTP implementation. Engine: load the database; instantiate a page with its template and panels (navigation bar and frame via shared panels); draw Bitmap objects; compose popups at their origin. Present at a fixed 1× for now.
 - `tools/compare` headless renderer and HTML diff report.
 - **Done when:** the Phase 2 reference set matches pixel-exactly, or the residual differences are explained.

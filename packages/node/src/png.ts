@@ -11,23 +11,45 @@ const SIGNATURE = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
 /** Encodes an indexed image as a palette PNG (colour type 3) with the given 256-entry RGB palette. */
 export function encodeIndexedPng(image: IndexedImage, palette: Uint8Array): Uint8Array {
   const { width, height, pixels } = image;
-  const raw = new Uint8Array((width + 1) * height);
-  for (let y = 0; y < height; y++) {
-    // Filter type 0 (none) for every row.
-    raw.set(pixels.subarray(y * width, (y + 1) * width), y * (width + 1) + 1);
+  return concat([
+    SIGNATURE,
+    chunk('IHDR', imageHeader(width, height, 3)),
+    chunk('PLTE', palette.subarray(0, 256 * 3)),
+    chunk('IDAT', deflateSync(unfilteredRows(pixels, width, height))),
+    chunk('IEND', new Uint8Array(0)),
+  ]);
+}
+
+/** Encodes an RGB image as a truecolour PNG (colour type 2). */
+export function encodeRgbPng(image: RgbImage): Uint8Array {
+  const { width, height, rgb } = image;
+  if (rgb.length !== width * height * 3) {
+    throw new Error(`expected ${width * height * 3} bytes of RGB for ${width}×${height}, got ${rgb.length}`);
   }
+  return concat([
+    SIGNATURE,
+    chunk('IHDR', imageHeader(width, height, 2)),
+    chunk('IDAT', deflateSync(unfilteredRows(rgb, width * 3, height))),
+    chunk('IEND', new Uint8Array(0)),
+  ]);
+}
+
+/** IHDR: bit depth 8, the colour type, deflate, adaptive filtering, no interlace. */
+function imageHeader(width: number, height: number, colourType: 2 | 3): Uint8Array {
   const header = new Uint8Array(13);
   const view = new DataView(header.buffer);
   view.setUint32(0, width);
   view.setUint32(4, height);
-  header.set([8, 3, 0, 0, 0], 8); // bit depth 8, palette, deflate, adaptive filtering, no interlace
-  return concat([
-    SIGNATURE,
-    chunk('IHDR', header),
-    chunk('PLTE', palette.subarray(0, 256 * 3)),
-    chunk('IDAT', deflateSync(raw)),
-    chunk('IEND', new Uint8Array(0)),
-  ]);
+  header.set([8, colourType, 0, 0, 0], 8);
+  return header;
+}
+
+/** The samples with filter type 0 (none) in front of every row. */
+function unfilteredRows(samples: Uint8Array, stride: number, height: number): Uint8Array {
+  const raw = new Uint8Array((stride + 1) * height);
+  for (let y = 0; y < height; y++)
+    raw.set(samples.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);
+  return raw;
 }
 
 /** An image as RGB triplets, row by row from the top. */

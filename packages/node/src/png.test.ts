@@ -1,6 +1,6 @@
-import { deflateSync } from 'node:zlib';
+import { deflateSync, inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { decodePng, encodeIndexedPng, indexedToRgb } from './png.ts';
+import { decodePng, encodeIndexedPng, encodeRgbPng, indexedToRgb } from './png.ts';
 
 const palette = new Uint8Array(768).map((_, i) => (i * 37) & 0xff);
 const image = { width: 3, height: 2, pixels: Uint8Array.of(0, 1, 2, 255, 128, 7) };
@@ -9,6 +9,22 @@ describe('PNG', () => {
   it('round-trips an indexed image through its palette', () => {
     const png = encodeIndexedPng(image, palette);
     expect(decodePng(png)).toEqual(indexedToRgb(image, palette));
+  });
+
+  it('round-trips an RGB image', () => {
+    const rgbImage = { width: 3, height: 2, rgb: Uint8Array.from({ length: 18 }, (_, i) => (i * 37) & 0xff) };
+    const png = encodeRgbPng(rgbImage);
+    expect(decodePng(png)).toEqual(rgbImage);
+    // One filter byte (0, none) in front of each row's pixels.
+    const idat = png.indexOf(0x49, 33); // 'I' of IDAT, after the signature and the IHDR chunk
+    const length = new DataView(png.buffer).getUint32(idat - 4);
+    const raw = inflateSync(png.subarray(idat + 4, idat + 4 + length));
+    expect(raw.length).toBe((3 * 3 + 1) * 2);
+    expect(raw[0]).toBe(0);
+  });
+
+  it('rejects RGB data of the wrong size', () => {
+    expect(() => encodeRgbPng({ width: 2, height: 2, rgb: new Uint8Array(5) })).toThrow(/expected 12 bytes/);
   });
 
   it('undoes every row filter of an RGB image', () => {

@@ -1,0 +1,57 @@
+# tools/compare
+
+`pnpm compare` replays the reference captures of `pnpm refcapture` (`tools/refcapture/README.md`) in the headless engine and diffs each one against our rendering (`docs/PLAN.md` §5.5). It writes an HTML report and `results.json` to `vendor/compare/` (gitignored). Nothing from the disc or the captures is ever committed.
+
+## Usage
+
+```
+pnpm compare                     # every capture in vendor/ref
+pnpm compare 1538                # captures of page 1538, or whose path starts there
+pnpm compare 41* 'path-*'        # a page glob, a capture-name glob
+pnpm compare 1188/path-1538_*    # a glob over <page>/<name>
+pnpm compare --images differing  # write pictures only for captures that differ (all, differing, none)
+pnpm compare --out DIR --quiet
+```
+
+`$TWTW_CD` (the disc, default `vendor/cd`), `$TWTW_REF` (the captures, default `vendor/ref`) and `$TWTW_COMPARE_OUT` (default `vendor/compare`) override the locations. A filtered run updates its captures in `results.json` and keeps the others. The command exits with 1 if a capture has an unexplained difference or could not be replayed.
+
+Open `vendor/compare/index.html`: totals, the expected differences by reason, and a table of captures you can filter and sort. Each capture has a page with the reference, our rendering and the diff side by side (red: unexplained, orange: explained, blue tint: masked area), and a picture you click to blink between reference and ours.
+
+## What one comparison does
+
+1. **Replay.** Show the capture's start page, then apply each click step. The engine has no input dispatch yet, so `src/step-dispatch.ts` reads what the clicked object does from the database (the first page action of its click handlers, or the NavPanel button's page) and calls `changePage`, `openPopup` or `closePopup`. A click on the base page while a popup is open only closes the popup, and a ChangePage to a base page closes the popups (both seen under Wine). The effect must agree with the one refcapture recorded, and the final state with its prediction; otherwise the capture is an error. Phase 4 replaces this module with the engine's own hit-testing and dispatch.
+2. **Render** with the `wine` presentation (popup placement, shadow over white, nearest-colour captions) and convert through the master palette.
+3. **Diff** the client area: 638×459, or 634×454 when the capture is black beyond Wine's own client (as all current captures are), or the overlap with an older 634×454 capture.
+4. **Classify** every differing pixel by the first mask that covers it (`src/masks.ts`), derived from the database, the engine's state and the sidecar. Anything else is unexplained.
+
+| Reason | Where | Pixels it explains |
+|---|---|---|
+| `wineClientStrip` | columns 634–637, rows 454–458 | black in the reference |
+| `wineCaptionColour` | each popup's 8-pixel caption strip | Wine's `9E9E9E` and `3296FA`, which the palette lacks (rendering.md §7.3) |
+| `azLamp` | the A–Z dial's lamp | any (it blinks, rendering.md §6) |
+| `moviePlaying` | the AnimationControl strip addressed by a panel's on_open SENDMESSAGE, and its animation's frames | strip: any; frames: colours a frame paints there |
+| `wineAnimationStall` | autostart animations of a page that should have moved on | colours a frame of the animation paints there |
+| `autostartAnimation` | other autostart animations | the same |
+| `animationLeftover` | the animation that moved on to the page | the same |
+| `referenceChanging` | the sidecar's `changingRect`, when the capture still cycled | any |
+
+Animation masks are per pixel: a difference counts as explained only where the reference shows a colour that some frame of that animation paints at that position (frames placed at their panel's origin).
+
+**Auto-advance.** For a capture whose page should move on by itself (`settledDiffersFromRequested`), two renderings are tried: the page itself with its animation stalled, and the page it moves on to with what the animation leaves behind. The one with fewer unexplained pixels wins, and the result says `stalled` or `arrived`.
+
+**Status** per capture: `exact` (no differing pixel), `explained` (all explained), `unexplained`, or `error` (the replay failed).
+
+## Output
+
+```
+vendor/compare/index.html                       the summary and the table
+vendor/compare/results.json                     totals and every capture's result
+vendor/compare/captures/<page>/<name>.html      one capture
+vendor/compare/captures/<page>/<name>.{ref,ours,diff}.png
+```
+
+Each result in `results.json` has the status, the differing and unexplained pixel counts, the percentage of the compared area, the explained pixels by reason, bounding boxes of the unexplained and of all differing pixels, the masks with their reasons, the rendered state and notes.
+
+## Tests
+
+`pnpm test` runs the unit tests on a synthetic disc (`src/test-disc.ts`, built with `@twtw/formats/testing` and `@twtw/engine/testing`): the diff and its classification, bounding boxes, the masks, the step dispatch and whole comparisons. `src/acceptance.corpus.test.ts` compares the Phase 2 acceptance set (title still page, Workshop, A–Z machine, A–Z "A", Airplane and the Airplane popup paths) and requires zero unexplained pixels; it skips without the disc or the captures.

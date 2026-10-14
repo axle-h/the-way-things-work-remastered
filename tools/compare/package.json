@@ -1,0 +1,15 @@
+{
+  "name": "@twtw/tools-compare",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compare": "node src/main.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@twtw/engine": "workspace:*",
+    "@twtw/formats": "workspace:*",
+    "@twtw/node": "workspace:*"
+  }
+}

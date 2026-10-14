@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import type { PageDatabase, PageRef } from '@twtw/formats';
+import { encodeRgbPng } from '@twtw/node';
 import {
   formatStep,
   pathName,
@@ -27,7 +28,6 @@ import {
 import { SCREEN_SIZE, sleep } from './env.ts';
 import { FrameStream, waitSettled, type Region, type SettledCapture } from './grab.ts';
 import { refDir } from './paths.ts';
-import { encodePng } from './png.ts';
 import type { SettleResult } from './settle.ts';
 import { patchStartupPage } from './startup-patch.ts';
 import { autoAdvanceChain, popupOpeners } from './targets.ts';
@@ -232,7 +232,7 @@ export class Harness {
     const png = captureFile(sidecar.page, name);
     mkdirSync(join(refDir, String(sidecar.page)), { recursive: true });
     const full: Sidecar = { ...sidecar, image: `${name}.png` };
-    writeAtomically(png, encodePng(sidecar.width, sidecar.height, rgb));
+    writeAtomically(png, encodeRgbPng({ width: sidecar.width, height: sidecar.height, rgb }));
     writeAtomically(
       png.replace(/\.png$/, '.json'),
       new TextEncoder().encode(JSON.stringify(full, null, 2) + '\n'),

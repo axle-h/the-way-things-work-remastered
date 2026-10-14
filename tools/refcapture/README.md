@@ -72,4 +72,4 @@ Each PNG is the client area in RGB, 638×459 (or Wine's 634×454 with `--no-resi
 
 ## Tests
 
-`pnpm test` covers the parts that need no X server: the startup-patch offset, page names and auto-advance chains, action paths to client coordinates, the settle rule and the PNG encoder, all on a synthetic database built with `@twtw/formats/testing`.
+`pnpm test` covers the parts that need no X server: the startup-patch offset, page names and auto-advance chains, action paths to client coordinates, and the settle rule, all on a synthetic database built with `@twtw/formats/testing`. PNG encoding and decoding come from `@twtw/node`.
