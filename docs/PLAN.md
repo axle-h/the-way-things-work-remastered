@@ -154,7 +154,7 @@ Implement from `docs/formats/`, with unit tests on synthetic data first, then co
 - **Done when:** §5.1–5.3 pass over the whole disc.
 
 ### Phase 2 — Reference capture harness
-Status: **done** (2026-10-14). `pnpm refcapture` (`tools/refcapture/README.md`) captured the acceptance set and all 397 base pages into `vendor/ref/` at the Windows 3.1 client size of 638×459. Under Wine, animations stop after 2–3 s, so the 24 pages that should move on by themselves are flagged (`docs/reference-environments.md`, "Animations under Wine"). "Go to page" is dead in this release (`program.md`); the harness uses the startup-page patch instead.
+Status: **done** (2026-10-14). `pnpm refcapture` (`tools/refcapture/README.md`) captured the acceptance set and all 397 base pages into `vendor/ref/` at the Windows 3.1 client size of 638×459. Under Wine, animations stop after 2–3 s, so 23 of the 24 pages that should move on by themselves stall (the title transition reaches the Workshop, with leftovers) (`docs/reference-environments.md`, "Animations under Wine"). "Go to page" is dead in this release (`program.md`); the harness uses the startup-page patch instead.
 - `tools/refcapture` on top of `wine/run.sh`, using a nested Xwayland server, `ffmpeg x11grab` and XTEST input (`docs/reference-environments.md`). Locate and crop the 640×480 client area automatically.
 - Crawl strategy driven by the database; record action paths; capture a defined "settled" state (animations finished).
 - Investigate the "Go to page" / developer-mode shortcut.
@@ -230,8 +230,8 @@ Model this on the Encarta project (`~/projects/encarta/k8s/`, `.github/workflows
 
 - Unnamed fields: sound and animation action parameters, AnimationControl extras. (Solved: the NavPanel's nine `i16` values, the template flag blocks and the object flags; see `page-database.md` and `rendering.md`.)
 - ~~The page link block.~~ Solved: the four links replace the targets of four navigation buttons (`page-database.md`).
-- The exact PICS frame timing rule.
-- What WordBox (660 instances) does.
+- ~~The exact PICS frame timing rule.~~ Read from the code (`pics.md`, `playback.md`); a measured check against the original is still to do.
+- ~~What WordBox (660 instances) does.~~ Nothing: every WordBox has an empty rectangle and no handlers (`behaviour.md`).
 - ~~Where the transitions are used.~~ Found: ChangePage's `u16` is a panel transition id (always 0 on the disc), OpenPage's `u16` selects the zoom effect (`page-database.md`).
 - How the Index page and Options behave.
 - What exactly the original prints and copies.

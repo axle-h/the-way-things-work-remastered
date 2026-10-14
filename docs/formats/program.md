@@ -32,7 +32,7 @@ Provenance: window class registration `1018:86ce`, creation and placement `1010:
 - While the database loads, EXE bitmap 121 is shown as a splash in a borderless window centred on the screen (`1010:4714`) [C].
 
 ## Input [C]
-The window passes mouse and keyboard input to the current page. Click handlers fire on **mouse button release**. The page with focus is the topmost popup, if one is open, otherwise the base page. The mouse cursor changes to the cursor named by the object under the pointer (`Hand`, `Arrow`, or `normal` for the default). Under Wine the cursor is an X cursor and never appears in the window's pixels [V].
+The window passes mouse and keyboard input to the page window under the pointer (or to the object that holds the mouse capture). Click handlers fire on **mouse button release**. The mouse cursor changes to the cursor named by the object under the pointer (`Hand`, `Arrow`, or `normal`). The full rules are in behaviour.md. Under Wine the cursor is an X cursor and never appears in the window's pixels [V].
 
 ### Keyboard
 - `WM_KEYDOWN`: the program forwards only the function keys F1–F24, as numbers 1–24, to the focused page. Backspace, digits and letters are left for `WM_CHAR`, and other keys go to Windows' default handling. `WM_CHAR` characters are forwarded to the focused page [C].
@@ -152,7 +152,7 @@ A cursor resource is the hotspot (x u16, y u16) followed by a monochrome DIB wit
 | 107 | 2 | 32×32 | (6, 0) | pointing hand; fingertip at the hotspot |
 | 157 | 3 | 32×32 | (0, 0) | arrow |
 
-Each group has one image. The directory gives 308 bytes for cursor 3 (4 + 40 + 8 + 2 × 128) but 320 for cursor 2, whose last 12 bytes are zero. Which group the database's cursor names (`Hand`, `Arrow`, `normal`) select is not established [H].
+Each group has one image. The directory gives 308 bytes for cursor 3 (4 + 40 + 8 + 2 × 128) but 320 for cursor 2, whose last 12 bytes are zero. The database's cursor names select them ignoring case: `Hand` is group 107, `Arrow` and `Normal` are group 157 (`1010:c70e`; behaviour.md §8) [C].
 
 ## Installation [C]
 `SETUP.EXE` runs a Microsoft Setup Toolkit script (`DKSTP/TWTW.MST`, plain text). It copies the program to the hard disk (default `C:\TWTW`), installs the ADPCM codec if needed, may switch the display driver to a 256-colour one, creates Program Manager items, and writes `TWTW.INI` with `Data=` set to the disc's root.

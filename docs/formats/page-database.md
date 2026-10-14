@@ -118,7 +118,7 @@ NavPanel [V]: the nine `i16` values are the ids of the panel's nine NavHotspot o
 | 2 | Principles of Science | link 0, else `pageref` 1 |
 | 3 | History | link 3, else `pageref` 4 |
 | 4 | Inventors | link 2, else `pageref` 3 |
-| 5 | Back | go back through the program's page history (`1020:d7f0`; details [H]) |
+| 5 | Back | go back through the program's history of base pages (`1020:d7f0`; behaviour.md §6.3) [C] |
 | 6 | Index | close the page of `pageref` 7 if it is open, then open it (`1020:d814`) |
 | 7 | Help | the same with `pageref` 8 (`1020:d878`) |
 | 8 | Options | close the pages of `pageref` 5 and 6 if open, then open `pageref` 5 (OpenPage, flag 0) (`1020:d8dc`) |
@@ -154,7 +154,7 @@ None of them affects drawing at rest. A Bitmap's rectangle only gives its top-le
 
 Values of the unnamed fields on the disc [V]:
 - Hotspot `i16`: always 0. It selects a pressed-highlight style 1–4, and 0 means none [C]. AnimHotspot and NavHotspot `i16`: always 1.
-- AZHotspot: the first `i16` is always 0; the second runs from 0 to 28 across the A–Z machine's hotspots [H] (perhaps a position in a list).
+- AZHotspot: the first `i16` is always 0; the second runs from 0 to 28 across the A–Z machine's hotspots [V]. It is a dial code: 0–25 select a letter, 26 and 27 step back and forward, 28 is the go button (behaviour.md §7) [C].
 - AnimationControl: the second rect always equals the object's rect, and the second cursor equals its cursor. The two `u16` are 0, and 0 or 1. The last `i16` is always 59.
 - CancelButton: all three `str` are 0 (no string). The button draws EXE bitmap 170 instead (rendering.md §5).
 - ScrollBar: the eight part bitmaps are all `@` resources. The second of the four `i16` is the id of the ScrollBitmap it scrolls, in the same panel. On a ScrollBitmap the same field is not an object id; its meaning is unknown.
@@ -167,7 +167,7 @@ An action is an `i16` type followed by its fields. Names below are ours, with th
 | Type | Name | Fields | Count |
 |---|---|---|---|
 | 1 | OpenPage (`OPENPAGE`) | `pageref`, `u16` | 2,158 |
-| 2 | SendMessage (`SENDMESSAGE`) | `i16` message, `i16` parameter; only (181, 59) occurs | 98 |
+| 2 | SendMessage (`SENDMESSAGE`) | `i16` target object id, `i16` message; only (181, 59) occurs (behaviour.md §4.5) | 98 |
 | 3 | ChangePage (`CHANGEPAGE`) | `pageref`, `u16` | 7,919 |
 | 4 | PlayWave (`PLAYWAVE`) | `str` file (`.WAV`), 4 × `i16`, `u16` | 285 |
 | 5 | StopWave | `str` | 0 |
@@ -184,7 +184,7 @@ Values of the unnamed fields on the disc [V]:
 - ChangePage's `u16` is always 0. It is the panel transition id for the new page's first paint (0 = none; 1–14 are wipes, scrolls, dissolves and zooms) [C].
 - OpenPage's `u16` is 0 (1,335 times) or 1 (823 times). It is the window-opening effect: 0 `none`, 1 `zoom`, outlines growing from the clicked object to the popup (rendering.md §7.5) [C]. PlayWave and PlayPics always carry −1, −1, 1, 1, 0 (one PlayWave ends in 1 instead of 0); because the third and fourth values are always equal, the data cannot confirm their order.
 
-Semantics [C]: ChangePage replaces the base page. OpenPage shows a popup over it. ClosePage closes one. PlayPics plays an animation over the current picture. PlayWave plays a sound. ProductOption invokes product-specific behaviour (the Options screen). Unnamed parameters [H]: candidate keywords include `INTERVAL`, `HIGHLIGHT`, `AUTOSTART`, `AUTOREWIND` and `LOADONDEMAND`. The transition names `none` and `zoom` are the OpenPage `u16` values. `wipeleft` and `wiperight` name panel transitions, which ChangePage's `u16` would select [C].
+Semantics [C] (full rules in behaviour.md §4 and playback.md §4): ChangePage replaces the base page. OpenPage shows a popup over it. ClosePage closes one. PlayPics plays an animation over the current picture. PlayWave plays a sound. ProductOption invokes product-specific behaviour (the Options screen). Unnamed parameters [H]: candidate keywords include `INTERVAL`, `HIGHLIGHT`, `AUTOSTART`, `AUTOREWIND` and `LOADONDEMAND`. The transition names `none` and `zoom` are the OpenPage `u16` values. `wipeleft` and `wiperight` name panel transitions, which ChangePage's `u16` would select [C].
 
 ## Resolving media files [V]
 

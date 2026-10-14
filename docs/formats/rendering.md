@@ -122,9 +122,10 @@ The parts are composed off-screen and copied as one 74×22 block. **At rest the 
 | `0x100` | no rectangle stored (never on the disc) |
 | `0x10` | AnimHotspot: load the animation only when it is needed (on click) instead of when the page opens; free it when it finishes. Probably `LOADONDEMAND` [H] |
 | `0x20` | AnimHotspot: start playing as soon as the page has opened. Probably `AUTOSTART` [H]. It is set on the title animation and 23 others |
-| `0x40` | AnimHotspot: extra step when the animation finishes, probably `AUTOREWIND` [H] |
+| `0x40` | AnimHotspot: rewind the animation to its start when it ends, probably `AUTOREWIND` (playback.md §6) [C] |
 | `0x80` | AnimHotspot: alternative way of opening the animation; unused |
-| `0x1`, `0x4` | affect how a click is accepted (Hotspot, AnimationControl; Phase 4). No drawing effect |
+| `0x1`, `0x4` | Hotspot: `0x4` stops all media before the click, `0x1` lets the click act even if something was playing (behaviour.md §3). No drawing effect |
+| `0x2` | do not take the mouse capture on a press (never on the disc; behaviour.md §1.4) |
 
 None of the flags hides an object or changes how it is drawn at rest.
 
@@ -142,7 +143,7 @@ Provenance: paint `1020:b038` → `1020:ae1a`, load `1020:afbc`, timer `1020:b0a
 
 Provenance: open `1020:134c`, window creation `1018:22a4`, caption `1000:7904` and `1000:7a50`, shadow `1020:1d20`, paint `1020:19a2`, ChangePage reuse `1018:c1a0`.
 
-Popup pages (all on template 0) and the index page (template 617) get their own window: a top-level `WS_POPUP | WS_VISIBLE` window with no Windows frame, caption or border, owned by the main window [C]. Under Wine, the window of the Airplane popup (a 287×330 picture) is exactly 291×342: picture width + shadow by caption + picture height + shadow [V]. Everything inside it is drawn by the program.
+Popup pages (all on template 0) and the index page (template 617) get their own window: a top-level `WS_POPUP | WS_VISIBLE` window with no Windows frame, caption or border, owned by the window of the page that was active (last pressed) when it opened: the main window for a popup opened from the base page, another popup for one opened from a popup (behaviour.md §4.1) [C]. Under Wine, the window of the Airplane popup (a 287×330 picture) is exactly 291×342: picture width + shadow by caption + picture height + shadow [V]. Everything inside it is drawn by the program.
 
 ### 7.1 Template fields that control the window
 In-memory provenance: the template reader `1010:3182`. Names in the right-hand column are candidates from the program's keyword strings [H]; the behaviour is [C].
@@ -219,10 +220,11 @@ ChangePage replaces the page in the existing window of the same page type [C] (1
 - **same content size** as the old page: the window stays where it is;
 - **different size**: the window is resized to the new size and moved to main window top-left + (94,4) + new origin, **without** the caption-height term, i.e. page (origin.x + 93, origin.y − 16) on Windows 3.1 (and, by the same formula with Wine's frame, (origin.x + 91, origin.y − 19) under Wine [H]). This looks like a quirk of the original; confirm it with a capture.
 
-Whether other popups close when a popup changes the base page is not established here (Phase 4).
+A ChangePage to a **base** page, from a popup or anywhere else, closes every open popup: they are owned by the main window, or by popups that are, and the change closes the windows the main window owns (`behaviour.md` §4.3) [C]. Observed under Wine: Airplane (1538) → See Also popup (1188) → Airship hotspot → base page 3330 with no popup left [V]. A popup-to-popup ChangePage leaves the other popups open, except those owned by the changing popup [C].
 
 ### 7.8 Hit-testing notes (Phase 4)
-- Objects are tested from the **last to the first** in data order, so the topmost drawn object wins (`1010:0936`) [C]. Test points are in panel coordinates.
+The full rules are in `behaviour.md` (§1, §5).
+- Objects are tested from the **last to the first** in data order, so the topmost drawn object wins (`1010:0936`) [C]. Test points are in panel coordinates, and rectangles include all four edges.
 - A popup's caption strip and shadow are not part of its picture. A hit-test routine (`1020:1b1c`) classifies them: points in the caption strip at window x < 12 give one code, the rest of the strip another (dragging), and the shadow strips a third [C]. What each code does is for Phase 4.
 
 ## 8. Order of events when a page opens
@@ -235,7 +237,7 @@ ChangePage of a base page [C]:
 3. Load every new panel: load its pictures (fixing the Bitmap rectangles), compute its extents and size.
 4. Paint every new panel, in panel-list order, directly to the window.
 5. For every new panel: run its `on_open` handlers (on the disc, only the 22 `SENDMESSAGE (181, 59)` handlers), then "start" each object:
-   - AnimHotspots without `0x10` load their animation, and those of them with `0x20` are queued to play;
+   - AnimHotspots without `0x10` load their animation, and those of them with `0x20` start playing at once (playback.md §6);
    - an AnimationControl starts only if the first of its two trailing `u16` flags is 1, which never happens on the disc.
 
 Opening a window (startup page, popup, index) [C]:
@@ -244,6 +246,8 @@ Opening a window (startup page, popup, index) [C]:
 3. After that first paint the window posts itself a private message (`0x401`). Handling it runs the page's open events, then step 5 for each panel. For popups the order is page `on_preopen`, then the panels, then page `on_open`; for base pages, page `on_open`, then the panels. No page-level open handlers exist on the disc.
 
 **Settled state:** a page's pictures are complete after its first paint. Autostart animations then draw over them, so a settled capture of a page with an autostart animation shows animation frames (e.g. the title capture differs from `TITL0m` in (220,30)–(471,126)) [V]. Mask those areas in Phase 3 comparisons.
+
+**Where animation frames land** [C][V]: an animation draws through its object's **panel**: the origin is the panel's position and drawing is clipped to the panel's rectangle (`1008:5b52` → `1008:edd4`). PICS frame rectangles are therefore panel coordinates, not relative to the object's own rectangle: on base pages page (94,4) + frame rect, on the title template page (0,0) + frame rect. Example: `QCAM1M0A`'s AnimHotspot rectangle is (533,1)–(539,5), but its frames span (28,1)–(446,448) of the content panel [V]. The object's rectangle only matters for clicks. An AnimationControl's animation is the movie: its frames form the movie screen, also in panel coordinates (`playback.md`).
 
 The 22 base pages whose panels have the `on_open` `SENDMESSAGE (181, 59)` handler are the Principles of Science movie pages (`\PRINCIPL\Q…\`, each with an AnimationControl). Their settled Wine captures show the movie playing: frames in the movie screen, and the control's pause button in place of play [V]. So the handler starts the page's AnimationControl [H] (59 is also the value of every AnimationControl's last `i16`, `page-database.md`). Those pages never show the static rendering either; mask the movie screen and the control.
 
@@ -259,7 +263,7 @@ The splash picture shown while the database loads is EXE bitmap 121 (640×480), 
   - the Airplane, Workshop and "A" list base pages in Wine's visible 634×454 area: nav bar, frame and content [V];
   - the A–Z machine with its letter picture (lamp caught off) [V];
   - the Airplane popup's picture, caption strip and system box (with Wine's caption colours) [V].
-- The engine's static rendering (`packages/engine`, Phase 3), converted through the master palette, matches 321 of the 369 settled Wine captures of the reference set exactly in 634×454. Every other capture differs only by an expected difference of section 10: animations playing or left on screen (the title pages and the movie pages of section 8), the A–Z lamp caught on, and Wine's caption colours on the popup [V].
+- The engine's static rendering (`packages/engine`, Phase 3), converted through the master palette, matches 351 of the 400 settled Wine captures of the reference set exactly in 634×454. The other 49 differ only by an expected difference of section 10 [V]: 23 pages whose animation stalled under Wine before its `finished` page change, 22 Principles movie pages with the movie playing (section 8), 2 popups with Wine's caption colours, 1 A–Z machine with the lamp caught on, and 1 Workshop with the title transition's leftovers (page 410962, which did reach the Workshop).
 
 ## 10. What to confirm against captures
 

@@ -1,6 +1,6 @@
 # PICS animations (`*.ANI`)
 
-DK's own animation format. It is not the Windows animated-cursor format that shares the extension. Each file interleaves 8-bit PCM sound with packed image rectangles that are drawn over the page's background picture. Status: structure **[V]**: 495 of 497 files parse and decode completely. The two failures (`PRINCIPL\QLVR\QLVR0M0A.ANI` and `PRINCIPL\QLVR\QLVR.ANI`) have damaged headers and are never referenced by the page database: their first chunk header holds garbage and lacks the `funky!` filler. Decoded frames (composited in order), rectangles and soundtracks match the private oracle's output for all 495 files (18,337 frames). Timing **[H]**. Provenance: open `1018:6810`, read chunk `1018:7160`, unpack `1000:6eba`, play loop `1018:6d1a`/`6e0a`.
+DK's own animation format. It is not the Windows animated-cursor format that shares the extension. Each file interleaves 8-bit PCM sound with packed image rectangles that are drawn over the page's background picture. Status: structure **[V]**: 495 of 497 files parse and decode completely. The two failures (`PRINCIPL\QLVR\QLVR0M0A.ANI` and `PRINCIPL\QLVR\QLVR.ANI`) have damaged headers and are never referenced by the page database: their first chunk header holds garbage and lacks the `funky!` filler. Decoded frames (composited in order), rectangles and soundtracks match the private oracle's output for all 495 files (18,337 frames). Timing **[C]** (playback.md §2; not yet measured against the original). Provenance: open `1018:6810`, read chunk `1018:7160`, unpack `1000:6eba`, play loop `1018:6d1a`/`6e0a`.
 
 All integers are **little-endian**.
 
@@ -51,11 +51,13 @@ Continue until the unpacked size is reached. Control bytes `0x00` and `0x80` (ze
 
 Each image is opaque and replaces that rectangle of the current picture. Animations start from the page's main picture: for example, `TITLE\TITL0M0A.ANI` draws over `TITLE\TITL0M.DIB`.
 
+**Coordinates** [C][V]: the rectangles are in the coordinates of the **panel** that holds the object playing the animation, and drawing is clipped to that panel (rendering.md §8, "Where animation frames land"). On base pages the content panel is at page (94,4); on the title template it is at (0,0). They are not relative to the AnimHotspot's own rectangle: `QCAM1M0A`'s object is (533,1)–(539,5), while its frames cover (28,1)–(446,448). An AnimationControl's animation is a movie whose frames form the movie screen, in the same panel coordinates.
+
 ## Sound and timing
 
 The full soundtrack is all chunks' PCM concatenated in order, pre-roll included.
 
-Timing model [H] (fits every file, but not confirmed in code): let `P` = A × B be the number of pre-roll chunks. The `k`-th frame chunk (chunk index `P + k`, counting all chunks from 0) becomes visible when the PCM of chunk index `k` starts playing, i.e. at `(sum of sound bytes in chunks 0..k−1) / bytes per second`. So each picture appears `P` chunks before the sound stored alongside it, and the pre-roll exists so that sound is already buffered when pictures start. Typical chunks carry 0.2 s of audio (5 frames per second). Some carry 0.25 s, 1/3 s, 0.5 s or 1 s. Trailing chunks with silent audio let the picture catch up with the pre-roll, so sound and picture end together.
+Timing model [C] (fits every file, and confirmed in the play loop; playback.md §2 describes the player): let `P` = A × B be the number of pre-roll chunks. The `k`-th frame chunk (chunk index `P + k`, counting all chunks from 0) becomes visible when the PCM of chunk index `k` starts playing, i.e. at `(sum of sound bytes in chunks 0..k−1) / bytes per second`. So each picture appears `P` chunks before the sound stored alongside it, and the pre-roll exists so that sound is already buffered when pictures start. Typical chunks carry 0.2 s of audio (5 frames per second). Some carry 0.25 s, 1/3 s, 0.5 s or 1 s. Trailing chunks with silent audio let the picture catch up with the pre-roll, so sound and picture end together.
 
 Checks of the model against the data [V]: it gives strictly increasing frame times in all 495 files, and the last frame never comes after the end of the soundtrack. Chunks without any sound (`s` = 0, 1,447 of them) occur only at the end of a file. In 4 files (`CALC0Z0A`, `HOIS0M0A`, `REFR0M0A`, `SUBM0M1A`) the trailing chunks carry no sound rather than silence, so their last frame appears exactly when the sound ends. The private oracle's frame times agree with the model, but they are not independent evidence of how the original schedules frames.
 
