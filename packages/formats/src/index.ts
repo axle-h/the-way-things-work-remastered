@@ -5,3 +5,5 @@ export { decodeWindows1252, encodeWindows1252 } from './text.ts';
 export * from './pagedb/index.ts';
 export * from './audio/index.ts';
 export * from './pics/index.ts';
+export * from './dib/index.ts';
+export * from './ne/index.ts';
