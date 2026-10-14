@@ -1,1 +1,33 @@
-vendor
+# Copyrighted material: the disc image, everything extracted or derived from it,
+# reference-environment disk images, patched binaries and captures (see docs/CLEAN_ROOM.md)
+/vendor
+*.iso
+*.ISO
+*.img
+
+# Decompiler/disassembler output and anything written alongside it (see docs/CLEAN_ROOM.md)
+/analysis/decompiled
+*.gpr
+*.rep/
+
+# Safety net: disc file types that must never be committed by accident
+*.[Dd][Ii][Bb]
+*.[Aa][Nn][Ii]
+*.[Ww][Aa][Vv]
+*.[Ee][Xx][Ee]
+*.[Dd][Ll][Ll]
+*.[Dd][Rr][Vv]
+*.[Aa][Cc][Mm]
+*.[Mm][Ss][Tt]
+*.[Ii][Nn][Ff]
+*.[Ii][Nn][Cc]
+TWTW.PNG
+[Tt][Ww][Tt][Ww].[Pp][Nn][Gg]
+
+# Build output and dependencies
+node_modules/
+dist/
+__pycache__/
+
+# The public hostname, read by k8s/apply.sh; it must never be committed
+/k8s/host.local
