@@ -1,0 +1,5 @@
+# Applied on its own, before the namespaced manifests: everything else is namespaced into it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: twtw
