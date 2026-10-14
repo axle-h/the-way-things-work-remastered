@@ -103,9 +103,9 @@ What each display object draws during a panel paint, with nothing playing or pre
 | 115 / 117 | 15×16 | (3,3) | 115 shown (rewind button) |
 | 116 / 119 / 120 | 16×16 | (20,3) | 116 shown (play button) |
 | 118 | 31×21 | (38,6) | hidden |
-| 159 | 100×30 | (39,7) | progress indicator, positioned by playback progress [H] |
+| 159 | 100×30 | (39,7) | progress indicator, positioned by playback progress [H]; not visible at rest [V] |
 
-The parts are composed off-screen and copied as one 74×22 block. The progress indicator's exact clipping at rest is [H]; check it against a capture of a page with an AnimationControl (e.g. `\ARTICLE1\AMPL\`, control at panel (45,405)).
+The parts are composed off-screen and copied as one 74×22 block. **At rest the strip is bitmap 101 with 115 and 116 drawn on it, and nothing of 159 shows** [V]: the engine's rendering of `\ARTICLE1\AMPL\` (control at panel (45,405)) matches its Wine capture exactly. Where the progress indicator goes while playing is for Phase 5.
 
 **ScrollBar** (`1030:a4ea`, `1030:abc6`; Phase 6), for a rectangle (L, T, R, B) and its eight parts in data order (`LINEUP`, `LINEDOWN`, `THUMB`, `THUMBTRACK`, then the four `…ALT` pressed variants):
 - the up arrow at (L, T), at the bitmap's own size;
@@ -201,7 +201,7 @@ The caption is active when the popup is the window with input focus and is enabl
   So the shadow is offset by *s* from the top and left edges.
 - **Pixels** [C]: the program shrinks its window, lets the windows underneath repaint the uncovered strips, grows the window back without repainting, and ANDs a 50% checkerboard over what is on screen there, using EXE bitmaps 150/153 (8×8, 1 bit) as a pattern brush. In palette-index terms each shadow pixel is either unchanged or index 0 (black). Black pixels are those where **screen x + screen y is odd**; the program picks bitmap 150 or 153 from the window's screen position to keep that alignment [V on Wine].
 - In page coordinates on Windows 3.1 at 640×480, where the client starts at screen (1,20), **shadow pixels with (x + y) even are black** and the others show the base page underneath [C].
-- **Wine differs** [V]: the strips show the stipple over **white**, not over the base page, because the uncovered strips are not preserved. With the client at screen (195,195), black pixels are those with (x + y) odd. Shadows are therefore an expected difference against Wine captures; confirm the Windows 3.1 rendering in DOSBox-X.
+- **Wine differs** [V]: the strips show the stipple over **white**, not over the base page, because the uncovered strips are not preserved. Everything the shrunken window uncovers is white: the whole right band x W … Wt−1 (all rows) and the whole bottom band rows Ht−*s* … Ht−1 (all columns), so the two *s*×*s* corners outside the shadow (top right, bottom left) are plain white. With the client at screen (195,195), black pixels are those with (x + y) odd. The engine's Wine presentation reproduces the Airplane popup capture exactly, apart from the caption colours (section 10). Shadows are therefore an expected difference against Wine captures; confirm the Windows 3.1 rendering in DOSBox-X.
 
 ### 7.5 Zoom (OpenPage flag 1)
 An OpenPage whose `u16` is 1 ("zoom"; 0 is "none") animates rectangle outlines from the clicked object to the new window, inverting pixels on the screen, before creating the window (`1018:2700`, `1008:c978`). Nothing of it remains afterwards, so the settled state is unaffected [C].
@@ -217,7 +217,7 @@ On a 640×480 screen the parts beyond page x 638 (screen x 639) are off-screen. 
 ### 7.7 ChangePage from popup to popup
 ChangePage replaces the page in the existing window of the same page type [C] (1,079 popup-to-popup ChangePages on the disc):
 - **same content size** as the old page: the window stays where it is;
-- **different size**: the window is resized to the new size and moved to main window top-left + (94,4) + new origin, **without** the caption-height term, i.e. page (origin.x + 93, origin.y − 16) on Windows 3.1. This looks like a quirk of the original; confirm it with a capture.
+- **different size**: the window is resized to the new size and moved to main window top-left + (94,4) + new origin, **without** the caption-height term, i.e. page (origin.x + 93, origin.y − 16) on Windows 3.1 (and, by the same formula with Wine's frame, (origin.x + 91, origin.y − 19) under Wine [H]). This looks like a quirk of the original; confirm it with a capture.
 
 Whether other popups close when a popup changes the base page is not established here (Phase 4).
 
@@ -245,6 +245,10 @@ Opening a window (startup page, popup, index) [C]:
 
 **Settled state:** a page's pictures are complete after its first paint. Autostart animations then draw over them, so a settled capture of a page with an autostart animation shows animation frames (e.g. the title capture differs from `TITL0m` in (220,30)–(471,126)) [V]. Mask those areas in Phase 3 comparisons.
 
+The 22 base pages whose panels have the `on_open` `SENDMESSAGE (181, 59)` handler are the Principles of Science movie pages (`\PRINCIPL\Q…\`, each with an AnimationControl). Their settled Wine captures show the movie playing: frames in the movie screen, and the control's pause button in place of play [V]. So the handler starts the page's AnimationControl [H] (59 is also the value of every AnimationControl's last `i16`, `page-database.md`). Those pages never show the static rendering either; mask the movie screen and the control.
+
+The Workshop reached through the title's transition page (the transition animation ends with `on_finish` → ChangePage to the Workshop) differs from the Workshop opened directly: parts of the transition animation's last frame stay on screen over the Workshop picture (about 2,300 pixels around the flasks, page (134,151)–(534,275)) [V]. Either the animation draws once more after the page change or the picture under it is not repainted [H]; Phase 5 should reproduce it, and a comparison of that capture must mask the area.
+
 The splash picture shown while the database loads is EXE bitmap 121 (640×480), in its own borderless window centred on the screen (`1010:4714`) [C].
 
 ## 9. The palette at runtime
@@ -255,14 +259,15 @@ The splash picture shown while the database loads is EXE bitmap 121 (640×480), 
   - the Airplane, Workshop and "A" list base pages in Wine's visible 634×454 area: nav bar, frame and content [V];
   - the A–Z machine with its letter picture (lamp caught off) [V];
   - the Airplane popup's picture, caption strip and system box (with Wine's caption colours) [V].
+- The engine's static rendering (`packages/engine`, Phase 3), converted through the master palette, matches 321 of the 369 settled Wine captures of the reference set exactly in 634×454. Every other capture differs only by an expected difference of section 10: animations playing or left on screen (the title pages and the movie pages of section 8), the A–Z lamp caught on, and Wine's caption colours on the popup [V].
 
 ## 10. What to confirm against captures
 
 For the comparison tool (`tools/compare`). Wine differences that are expected:
-- **Visible area:** Wine shows only 634×454 of the client (`program.md`).
-- **Popup position:** Wine places popups (−2, −3) from the Windows 3.1 position (7.2). Locate the popup's X window and compare it in its own frame.
-- **Caption colours:** Wine's frame and active caption colours differ (7.3).
-- **Shadow:** Wine's shadow is a stipple over white with the opposite parity (7.4).
+- **Visible area:** Wine shows only 634×454 of the client (`program.md`). The reference captures are 638×459, but their columns 634–637 and rows 454–458 are black: compare only 634×454 [V].
+- **Popup position:** Wine places popups (−2, −3) from the Windows 3.1 position (7.2). Locate the popup's X window and compare it in its own frame, or render with the engine's `wine` presentation, which places popups and draws the shadow as Wine does.
+- **Caption colours:** Wine's frame and active caption colours differ (7.3). Neither `9E9E9E` nor `3296FA` is in the master palette, so an indexed rendering cannot show them: treat the caption pixels in those colours as expected differences [V].
+- **Shadow:** Wine's shadow is a stipple over white with the opposite parity, corners white too (7.4).
 - **Animations and lamp:** autostart animation areas and the A–Z lamp change over time (sections 6 and 8).
 
 To confirm in DOSBox-X (Windows 3.1):

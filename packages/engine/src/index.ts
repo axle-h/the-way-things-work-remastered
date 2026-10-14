@@ -1,3 +1,15 @@
 // The DOM-free engine. It draws into an indexed framebuffer and runs in Node as well as the browser.
 export * from './manifest.ts';
 export * from './screen.ts';
+export * from './data/data-source.ts';
+export * from './data/file-index.ts';
+export * from './data/memory-source.ts';
+export * from './content.ts';
+export * from './colours.ts';
+export * from './pictures.ts';
+export * from './page.ts';
+export * from './render/canvas.ts';
+export { paintPage, paintPanel, drawScrollBar } from './render/paint.ts';
+export * from './render/window.ts';
+export * from './engine.ts';
+export type { PageRef } from '@twtw/formats';

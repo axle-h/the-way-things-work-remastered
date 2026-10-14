@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Node-only helpers for tests and tools: file system data source, PNG encoding and decoding.
+    "lib": ["ES2024"],
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

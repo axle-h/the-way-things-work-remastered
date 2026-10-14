@@ -1,0 +1,291 @@
+/**
+ * Instantiating a page (rendering.md §2): its panel list, panel rectangles, and every display
+ * object placed with the pictures it draws at rest (§4–6), loaded once so that painting is
+ * synchronous.
+ */
+import {
+  resolveMedia,
+  type AzDialPanel,
+  type DisplayObject,
+  type Page,
+  type PageDatabase,
+  type PageRef,
+  type Panel,
+  type PanelRef,
+  type PanelType,
+  type Rect,
+  type Template,
+} from '@twtw/formats';
+import { paletteIndexOf } from './colours.ts';
+import { IndexedCanvas } from './render/canvas.ts';
+import { ProgramBitmap, type PictureStore } from './pictures.ts';
+import type { IndexedImage } from './screen.ts';
+
+/** What a display object draws at rest; `null` for objects that draw nothing (hotspots etc.). */
+export type ObjectLook =
+  /** A picture copied opaque at the rectangle's top-left: Bitmap, CancelButton, AnimationControl. */
+  | { readonly kind: 'picture'; readonly picture: IndexedImage | null }
+  /** The rectangle's size of the picture, from its top row (scroll position 0). */
+  | { readonly kind: 'scrollBitmap'; readonly picture: IndexedImage | null }
+  /** The eight part bitmaps of a scroll bar, in data order (rendering.md §5). */
+  | { readonly kind: 'scrollBar'; readonly parts: readonly (IndexedImage | null)[] };
+
+export interface PlacedObject {
+  readonly object: DisplayObject;
+  /**
+   * Panel-relative rectangle after loading: a Bitmap's `right`/`bottom` come from its picture's
+   * size, and an AnimationControl becomes 74×22 (rendering.md §4–5). `null` when the object has
+   * no rectangle (flag `0x100`, never on the disc).
+   */
+  readonly rect: Rect | null;
+  readonly look: ObjectLook | null;
+}
+
+/** The A–Z machine dial's state (rendering.md §6). */
+export interface DialState {
+  /** Current letter, 0 = A. */
+  letter: number;
+  /** Lamp state: the program alternates it every second, starting with "on" after the first tick. */
+  lampOn: boolean;
+  /** Each letter's still picture, `null` if it failed to load. */
+  readonly letters: readonly (IndexedImage | null)[];
+  readonly lampOnPicture: IndexedImage | null;
+  readonly lampOffPicture: IndexedImage | null;
+}
+
+export type PanelSource =
+  /** One of the page's own panels. */
+  | 'page'
+  /** A template slot filled by a shared panel from the heap (navigation bar, frame). */
+  | 'shared'
+  /** A non-shared template slot the page does not supply: painted with its colour only. */
+  | 'empty';
+
+export interface PanelInstance {
+  readonly id: number;
+  readonly type: PanelType;
+  readonly source: PanelSource;
+  /** The template's PanelRef for this panel; `null` if the page's panel has no slot. */
+  readonly slot: PanelRef | null;
+  /** `null` for an empty slot. */
+  readonly panel: Panel | null;
+  /** Position and size in the page's content coordinates. */
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  /** The fill colour as a palette index. */
+  readonly colour: number;
+  readonly objects: readonly PlacedObject[];
+  /** Present on the A–Z dial panel. */
+  readonly dial: DialState | null;
+}
+
+export interface PageInstance {
+  readonly ref: PageRef;
+  readonly page: Page;
+  readonly template: Template;
+  /** In paint order: the page's own panels, then the template's other slots. */
+  readonly panels: readonly PanelInstance[];
+  /** Content size: the template's fixed size, or the extent of the panels. */
+  readonly width: number;
+  readonly height: number;
+  /** Loading problems (missing or undecodable pictures); those pictures draw nothing. */
+  readonly problems: readonly string[];
+}
+
+export interface PageLoadContext {
+  readonly database: PageDatabase;
+  readonly pictures: PictureStore;
+  readonly palette: Uint8Array;
+}
+
+/** AnimationControl strip size and part offsets (rendering.md §5). */
+const CONTROL_WIDTH = 74;
+const CONTROL_HEIGHT = 22;
+/** Where the A–Z dial panel draws the current letter's picture and the lamp (rendering.md §6). */
+export const DIAL_POSITIONS = {
+  letter: { x: 161, y: 101 },
+  lamp: { x: 334, y: 350 },
+} as const;
+
+/** Loads a page and everything it draws at rest. Throws if the page or its template is invalid. */
+export async function instantiatePage(context: PageLoadContext, ref: PageRef): Promise<PageInstance> {
+  const { database } = context;
+  const page = database.getPage(ref);
+  const template = database.templateFor(page);
+  if (template === undefined) throw new Error(`page ${ref}: no template ${page.templateId}`);
+  const problems: string[] = [];
+  const loader = new ObjectLoader(context, page.directory, problems);
+
+  const own = new Set(page.panels.map((panel) => panel.id));
+  const entries: { source: PanelSource; slot: PanelRef | null; panel: Panel | null }[] = [];
+  for (const panel of page.panels) {
+    const slot = template.panels.find((candidate) => candidate.panelId === panel.id) ?? null;
+    if (slot === null) problems.push(`panel ${panel.id} has no slot in template ${template.id}`);
+    entries.push({ source: 'page', slot, panel });
+  }
+  for (const slot of template.panels) {
+    if (own.has(slot.panelId)) continue;
+    if (slot.sharedPanel === null) {
+      entries.push({ source: 'empty', slot, panel: null });
+    } else {
+      entries.push({
+        source: 'shared',
+        slot,
+        panel: database.getSharedPanel(slot.sharedPanel, slot.panelType).panel,
+      });
+    }
+  }
+
+  const panels = await Promise.all(
+    entries.map(async ({ source, slot, panel }): Promise<PanelInstance> => {
+      const objects = panel === null ? [] : await Promise.all(panel.objects.map((o) => loader.place(o)));
+      const dial = panel?.kind === 'azDial' ? await loader.dial(panel) : null;
+      const extent = objectExtent(objects);
+      return {
+        id: panel?.id ?? slot?.panelId ?? 0,
+        type: panel?.kind ?? slot?.panelType ?? 'display',
+        source,
+        slot,
+        panel,
+        x: slot?.x ?? 0,
+        y: slot?.y ?? 0,
+        width: slot !== null && slot.width !== 0 ? slot.width : extent.width,
+        height: slot !== null && slot.height !== 0 ? slot.height : extent.height,
+        colour: slot === null ? 0 : paletteIndexOf(context.palette, slot.colour),
+        objects,
+        dial,
+      };
+    }),
+  );
+
+  const width = template.width !== 0 ? template.width : Math.max(0, ...panels.map((p) => p.x + p.width));
+  const height = template.height !== 0 ? template.height : Math.max(0, ...panels.map((p) => p.y + p.height));
+  return { ref, page, template, panels, width, height, problems };
+}
+
+/**
+ * The extent of a panel's objects, used when its PanelRef size is 0: the largest object `right`
+ * and `bottom` after loading (rendering.md §2).
+ */
+function objectExtent(objects: readonly PlacedObject[]): { width: number; height: number } {
+  let width = 0;
+  let height = 0;
+  for (const { rect } of objects) {
+    if (rect === null) continue;
+    width = Math.max(width, rect.right);
+    height = Math.max(height, rect.bottom);
+  }
+  return { width, height };
+}
+
+class ObjectLoader {
+  readonly #context: PageLoadContext;
+  readonly #directory: string | null;
+  readonly #problems: string[];
+
+  constructor(context: PageLoadContext, directory: string | null, problems: string[]) {
+    this.#context = context;
+    this.#directory = directory;
+    this.#problems = problems;
+  }
+
+  async place(object: DisplayObject): Promise<PlacedObject> {
+    const { rect } = object;
+    switch (object.kind) {
+      case 'bitmap': {
+        const picture = await this.#picture(object.file);
+        // The stored right/bottom are ignored: the picture's size decides (rendering.md §4).
+        const placed =
+          rect !== null && picture !== null
+            ? { ...rect, right: rect.left + picture.width, bottom: rect.top + picture.height }
+            : rect;
+        return { object, rect: placed, look: { kind: 'picture', picture } };
+      }
+      case 'cancelButton':
+        // The button's picture is EXE bitmap 170; its three strings are unused (rendering.md §5).
+        return { object, rect, look: { kind: 'picture', picture: this.#resource(ProgramBitmap.cancel) } };
+      case 'animationControl': {
+        const placed =
+          rect === null
+            ? null
+            : { ...rect, right: rect.left + CONTROL_WIDTH, bottom: rect.top + CONTROL_HEIGHT };
+        return { object, rect: placed, look: { kind: 'picture', picture: this.#controlStrip() } };
+      }
+      case 'scrollBitmap':
+        return { object, rect, look: { kind: 'scrollBitmap', picture: await this.#picture(object.file) } };
+      case 'scrollBar': {
+        const parts = await Promise.all(object.parts.map((name) => this.#picture(name)));
+        return { object, rect, look: { kind: 'scrollBar', parts } };
+      }
+      case 'hotspot':
+      case 'azHotspot':
+      case 'wordBox':
+      case 'navHotspot':
+      case 'animHotspot':
+      case 'azAnimHotspot':
+        // Nothing at rest; animations draw only while they play (Phase 5).
+        return { object, rect, look: null };
+    }
+  }
+
+  async dial(panel: AzDialPanel): Promise<DialState> {
+    const letters = await Promise.all(panel.letterAnimations.map((name) => this.#picture(name)));
+    return {
+      letter: 0,
+      lampOn: false,
+      letters,
+      lampOnPicture: this.#resource(ProgramBitmap.lampOn),
+      lampOffPicture: this.#resource(ProgramBitmap.lampOff),
+    };
+  }
+
+  /**
+   * The AnimationControl's 74×22 strip at rest (rendering.md §5): the background with the rewind
+   * and play buttons. The pressed and pause variants (117–120) and the progress indicator are
+   * for playback (Phase 5).
+   */
+  #controlStrip(): IndexedImage | null {
+    const background = this.#resource(ProgramBitmap.animationControl);
+    if (background === null) return null;
+    const strip = {
+      width: CONTROL_WIDTH,
+      height: CONTROL_HEIGHT,
+      pixels: new Uint8Array(CONTROL_WIDTH * CONTROL_HEIGHT),
+    };
+    const canvas = new IndexedCanvas(strip);
+    canvas.draw(background, 0, 0);
+    const rewind = this.#resource(ProgramBitmap.animationRewind);
+    if (rewind !== null) canvas.draw(rewind, 3, 3);
+    const play = this.#resource(ProgramBitmap.animationPlay);
+    if (play !== null) canvas.draw(play, 20, 3);
+    return strip;
+  }
+
+  /** A picture by database name (`.DIB` in the page directory, a disc path, or `@` resource). */
+  async #picture(name: string | null): Promise<IndexedImage | null> {
+    if (name === null) return null;
+    const location = resolveMedia(this.#directory, { kind: 'bitmap', name });
+    if (location.kind === 'resource') return this.#resource(location.name);
+    try {
+      return await this.#context.pictures.file(location.path);
+    } catch (error) {
+      this.#problems.push(`${location.path}: ${describe(error)}`);
+      return null;
+    }
+  }
+
+  #resource(id: number | string): IndexedImage | null {
+    try {
+      return this.#context.pictures.resource(id);
+    } catch (error) {
+      this.#problems.push(`program bitmap ${String(id)}: ${describe(error)}`);
+      return null;
+    }
+  }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

@@ -48,9 +48,22 @@ importers:
         specifier: 8.3.3
         version: 8.3.3(@types/node@24.19.1)
 
-  packages/engine: {}
+  packages/engine:
+    dependencies:
+      '@twtw/formats':
+        specifier: workspace:*
+        version: link:../formats
 
   packages/formats: {}
+
+  packages/node:
+    dependencies:
+      '@twtw/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@twtw/formats':
+        specifier: workspace:*
+        version: link:../formats
 
   tools/cleanroom: {}
 
