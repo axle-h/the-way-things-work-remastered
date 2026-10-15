@@ -74,7 +74,7 @@ Values on the disc [V]:
 - Template ids are unique, and every page names a template that exists and has the same page type. A page supplies exactly the panels of its template's non-shared slots, in slot order: on this disc, one panel per page (the Display panel 1, or the AZDial panel 78 on the A–Z machine page).
 
 ### A–Z index
-Directly after the product record: `i16` count (1,857), then for each entry: `str` name, `i16` name length, `i16` (always 0), `pageref` target page, `i16` m, and m × `pageref` "see also" pages. It feeds the Index list box and the A–Z machine. The name length always equals the number of characters in the name [V]. The index ends exactly at the page heap offset [V].
+Directly after the product record: `i16` count (1,857), then for each entry: `str` name, `i16` name length, `i16` (always 0), `pageref` target page, `i16` m, and m × `pageref` "see also" (companion) pages. Only the Index page uses it: the names fill its list in data order, and going to an entry goes to the target page and then to each companion page, usually a label popup on the target (special-screens.md §1) [C]. The A–Z machine has its own page refs (AZDial). The name length always equals the number of characters in the name [V]. The index ends exactly at the page heap offset [V].
 
 ## Page heap
 
@@ -157,7 +157,7 @@ Values of the unnamed fields on the disc [V]:
 - AZHotspot: the first `i16` is always 0; the second runs from 0 to 28 across the A–Z machine's hotspots [V]. It is a dial code: 0–25 select a letter, 26 and 27 step back and forward, 28 is the go button (behaviour.md §7) [C].
 - AnimationControl: the second rect always equals the object's rect, and the second cursor equals its cursor. The two `u16` are 0, and 0 or 1. The last `i16` is always 59.
 - CancelButton: all three `str` are 0 (no string). The button draws EXE bitmap 170 instead (rendering.md §5).
-- ScrollBar: the eight part bitmaps are all `@` resources. The second of the four `i16` is the id of the ScrollBitmap it scrolls, in the same panel. On a ScrollBitmap the same field is not an object id; its meaning is unknown.
+- ScrollBar and ScrollBitmap: the eight part bitmaps are all `@` resources. After the cursor come a `u16` link flag (1 on the ScrollBars, 0 on the ScrollBitmaps) and four `i16`: the partner's object id (on a ScrollBar the id of the ScrollBitmap it scrolls, in the same panel; unused on a ScrollBitmap), the minimum position (0), the maximum position (on ScrollBitmaps the value recomputed at load, special-screens.md §3.2; 0 on ScrollBars, which take their partner's), and the initial position (0) [C][V].
 
 ### Handlers and actions
 Handlers: `i16` count, then for each: `u16` event, `i16` action count, then actions. Events: 1 open, 2 app activated, 3 close, 4 click, 5 before open, 6 finished (animation ended). Only events 1 (22 handlers), 4 (10,540) and 6 (191) occur on the disc [V].
@@ -181,10 +181,10 @@ An action is an `i16` type followed by its fields. Names below are ours, with th
 | 13 | SeekPics | none | 0 |
 
 Values of the unnamed fields on the disc [V]:
-- ChangePage's `u16` is always 0. It is the panel transition id for the new page's first paint (0 = none; 1–14 are wipes, scrolls, dissolves and zooms) [C].
+- ChangePage's `u16` is always 0. It is the panel transition id for the new page's first paint (0 = none; 1–14 are wipes, scrolls, dissolves and zooms) [C]. Transitions are dropped in the remake (special-screens.md §6).
 - OpenPage's `u16` is 0 (1,335 times) or 1 (823 times). It is the window-opening effect: 0 `none`, 1 `zoom`, outlines growing from the clicked object to the popup (rendering.md §7.5) [C]. PlayWave and PlayPics always carry −1, −1, 1, 1, 0 (one PlayWave ends in 1 instead of 0); because the third and fourth values are always equal, the data cannot confirm their order.
 
-Semantics [C] (full rules in behaviour.md §4 and playback.md §4): ChangePage replaces the base page. OpenPage shows a popup over it. ClosePage closes one. PlayPics plays an animation over the current picture. PlayWave plays a sound. ProductOption invokes product-specific behaviour (the Options screen). Unnamed parameters [H]: candidate keywords include `INTERVAL`, `HIGHLIGHT`, `AUTOSTART`, `AUTOREWIND` and `LOADONDEMAND`. The transition names `none` and `zoom` are the OpenPage `u16` values. `wipeleft` and `wiperight` name panel transitions, which ChangePage's `u16` would select [C].
+Semantics [C] (full rules in behaviour.md §4 and playback.md §4): ChangePage replaces the base page. OpenPage shows a popup over it. ClosePage closes one. PlayPics plays an animation over the current picture. PlayWave plays a sound. ProductOption invokes product-specific behaviour (the Options screen: copy, print, printer setup; special-screens.md §4). Unnamed parameters [H]: candidate keywords include `INTERVAL`, `HIGHLIGHT`, `AUTOSTART`, `AUTOREWIND` and `LOADONDEMAND`. The transition names `none` and `zoom` are the OpenPage `u16` values. `wipeleft` and `wiperight` name panel transitions, which ChangePage's `u16` would select [C].
 
 ## Resolving media files [V]
 

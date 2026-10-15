@@ -60,7 +60,7 @@ The NavPanel and the AZDial panel use a simpler release (`1010:04a8`):
 They do **not** close popups first. So nav buttons work while popups are open; the actions they trigger close popups where needed (§4.4, §6).
 
 ### 1.7 Double clicks [C]
-The window class asks Windows for double clicks (`CS_DBLCLKS`, `1018:86ce`). The second press of a double click therefore arrives as a double-click message, not as a press. The program then ignores the next release. **A double click acts as a single click**; the second click is lost. The same "ignore the next release" is set by the private message `0x403`, which the Index page's keyboard hook posts (program.md, Keyboard).
+The window class asks Windows for double clicks (`CS_DBLCLKS`, `1018:86ce`). The second press of a double click therefore arrives as a double-click message, not as a press. The program then ignores the next release. **A double click acts as a single click**; the second click is lost. The shared window procedure also sets "ignore the next release" on the private message `0x403`, but the only sender of that message, the Index page's keyboard hook, sends it to the Index window, whose own procedure consumes it (special-screens.md §1.9), so in practice only double clicks trigger it.
 
 ### 1.8 Moves [C]
 A move updates the cursor (§6); nothing else reacts to hover. No hover highlights or hover animations exist. Moves are routed like presses (§1.2, §1.3), or to the capturing object.
@@ -111,7 +111,8 @@ Provenance `1010:883e`, queue `1010:5694`, `1010:5606`, `1010:56b4`.
 | AZHotspot (604) | Turn the dial (§7). No media stop |
 | CancelButton (608) | Press: stop all media and draw EXE bitmap 171. While pressed, moves show 171 inside the rectangle and 170 outside. Release: draw 170; inside, fire click (its handler is a ClosePage). Provenance `1030:2eb2`, `1030:2f18`, `1030:2fb2` |
 | AnimationControl (602) | Its buttons (playback.md §7) |
-| ScrollBitmap (609), ScrollBar (610) | Own handling, not covered here (Phase 6) |
+| ScrollBitmap (609) | Stop all media, nothing else (special-screens.md §3.3) |
+| ScrollBar (610) | Its own press, drag and auto-repeat; no media stop, no events (special-screens.md §3.3) |
 | Bitmap (601), WordBox (605), anything else | Stop all media, nothing else |
 
 **Hotspot** (`1010:b8d8`), with its flags:
@@ -171,7 +172,7 @@ Provenance `1030:1f84`.
 - 1: copy, and 2: print, act on the page recorded when the Options button was pressed (§6.2), if that page is still open.
 - 3: the print setup dialog.
 
-What they output is for Phase 8 (program.md).
+What they output is in special-screens.md §4.
 
 ## 5. Popup caption strip and shadow [C]
 Provenance: hit test `1020:1b1c`, window procedure `1018:8782` (`WM_NCHITTEST`, `WM_NCLBUTTONDOWN`, `WM_NCLBUTTONUP`).
@@ -244,7 +245,7 @@ Provenance: table `1010:c70e`, set `1010:4e04`, hover `1008:5c4c`, busy `1010:64
 ## 9. Keyboard [C][V]
 - The program forwards F1–F24 and typed characters to the focused page (program.md). The panels of ordinary pages ignore them: **no key does anything** on base pages and popups [C], matching the observation that F1, F2, `a`, Esc, Backspace, Tab, Page Up, Left, Esc and Enter have no visible effect [V].
 - Alt+F4 closes the focused popup, or the program from the main window (§5).
-- The Index page has its own keyboard handling (program.md; Phase 6).
+- The Index page has its own keyboard handling: Tab, Enter, Esc and the list keys (special-screens.md §1.9).
 
 ## 10. Application activation [C]
 When another application becomes active, the program stops all media and redraws the focus popup's caption as inactive (`WM_ACTIVATEAPP`). A remake can treat the page becoming hidden (or the window losing focus) the same way.
