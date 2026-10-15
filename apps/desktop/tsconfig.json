@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The main process, the preload script, the build scripts and the tests: Node and Electron.
+    "lib": ["ES2024"],
+    "types": ["node"]
+  },
+  "include": ["src/main", "src/preload.ts", "src/channels.ts", "scripts"]
+}

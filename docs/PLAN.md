@@ -204,7 +204,7 @@ Status: **implemented** (2026-10-15). Copy puts a 2× PNG of the captioned pictu
 - **Done when:** copy works (or falls back gracefully) on desktop and tablet browsers, and printouts look good on A4 and Letter.
 
 ### Phase 9 — Deployment on k3s
-Status: **applied, waiting on Alex** (2026-10-15). Dockerfile (alpine runtime, uid 10001, read-only root, no disc data), `container.yml` (disc-data check, smoke test on an empty `/data`, GHCR push on main), `k8s/` manifests and scripts; data synced to the volume and every resource applied in namespace `twtw`. To finish: create the GitHub repo and push, make the GHCR package public, DNS for the host (then the certificate issues by itself).
+Status: **deployed** (2026-10-15): GitHub repo public, CI and the container workflow green, the image runs in `twtw`. Dockerfile (alpine runtime, uid 10001, read-only root, no disc data), `container.yml` (disc-data check, smoke test on an empty `/data`, GHCR push on main), `k8s/` manifests and scripts; data synced to the volume and every resource applied in namespace `twtw`. To finish: create the GitHub repo and push, make the GHCR package public, DNS for the host (then the certificate issues by itself).
 Model this on the Encarta project (`~/projects/encarta/k8s/`, `.github/workflows/container.yml`, `Dockerfile`); read those first.
 - **Image:** a `Dockerfile` building `apps/web` and `apps/server` into a small image that runs as non-root on a read-only root filesystem and serves `/data` from a mounted volume. A GitHub Actions workflow builds it on every push, smoke-tests it against an **empty** `/data` (health endpoint plus the SPA), and on `main` pushes to `ghcr.io/axle-h/…` tagged `latest` and with the commit. The image and CI contain no disc data.
 - **Manifests in `k8s/`:**
@@ -218,6 +218,7 @@ Model this on the Encarta project (`~/projects/encarta/k8s/`, `.github/workflows
 - **Done when:** the app is reachable at its HTTPS hostname from the kids' devices, Copy works there (secure context), and `git grep` for the hostname finds nothing.
 
 ### Phase 10 — Desktop app (Electron, bring your own ISO)
+Status: **implemented** (2026-10-15). `apps/desktop`: Electron 44 serving the unchanged web build over `app://`, reading the user's ISO (or disc folder) in place, validated by volume label and the database's SHA-256; native clipboard; `window.print()` works. Packaged with `@electron/packager` (smallest tree); `desktop.yml` builds Linux, Windows and macOS on `v*` tags into a draft release, with a disc-data scan of every artefact. The Linux build was run against the ISO; Windows and macOS were only cross-packaged and scanned.
 - `apps/desktop`: Electron loading the same web build. On first run, ask the user to choose their `.iso` (or a mounted disc), validate it (volume label `DKMMTWTW` plus a checksum of `DKCODE/TWTW.PNG`), and remember the path. Serve data from the ISO through the ISO `DataSource`, so no extraction is needed. Use native clipboard and print through Electron APIs.
 - CI builds unsigned Windows, macOS and Linux packages and attaches them to GitHub releases. A CI step scans the artefacts and fails if any disc-derived file is found. The README explains that users must supply their own disc image.
 - **Done when:** a fresh machine with only the release download and an ISO runs the app.

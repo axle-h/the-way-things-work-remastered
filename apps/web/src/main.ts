@@ -16,6 +16,7 @@ import { WebAudioSink } from './audio.ts';
 import { buildCursorStyles } from './cursors.ts';
 import { keepAudioRunning, startAudio, waitForTap } from './gate.ts';
 import { parseDebugHash } from './debug-hash.ts';
+import { findHost } from './host.ts';
 import { HttpDataSource } from './http-source.ts';
 import { attachInput } from './input.ts';
 import { Prefetcher } from './prefetch.ts';
@@ -38,6 +39,8 @@ if (!canvas || !status || !gate || !softKeyboardInput || !rotate) {
   throw new Error('index.html is missing #stage, #status, #gate, #soft-keyboard or #rotate');
 }
 
+/** The browser, or the desktop app around this same build (host.ts). */
+const host = findHost();
 const storage = (): Storage | null => window.localStorage;
 let settings: Settings = loadSettings(storage);
 const presenter = new Presenter(canvas, settings.fill ? 'fill' : 'integer');
@@ -95,7 +98,7 @@ presenter.onLayout((layout: StageLayout) => {
 updateStatus();
 
 /** Copy and Print (Phase 8): the clipboard, the fallback picture, the print-only element. */
-const output = new PictureOutput(findPictureOutput());
+const output = new PictureOutput(findPictureOutput(), { writeClipboardPng: host.writeClipboardPng });
 
 const menu = attachSettingsMenu(findSettingsMenu(), settings, (next) => {
   settings = next;
@@ -104,6 +107,17 @@ const menu = attachSettingsMenu(findSettingsMenu(), settings, (next) => {
   if (sink !== null) sink.volume = settings.volume;
   updateStatus();
 });
+
+// The desktop app's "Change disc…": usable before the disc has loaded, should it fail to.
+const changeDisc = document.querySelector<HTMLButtonElement>('#setting-disc');
+if (changeDisc !== null && host.changeDisc !== undefined) {
+  const change = host.changeDisc;
+  changeDisc.hidden = false;
+  changeDisc.addEventListener('click', () => {
+    menu.close();
+    change().catch(report);
+  });
+}
 
 // ---------------------------------------------------------------------------------------------
 // The engine
@@ -205,13 +219,20 @@ function attachPictureCommands(engine: Engine): void {
 }
 
 /**
- * Loads the database, waits behind the "tap to start" gate (sound needs a gesture), then starts
- * the engine with Web Audio playback: frames are timed by the audio clock.
+ * Loads the database, waits behind the "tap to start" gate (sound needs a gesture; not in the
+ * desktop app, which allows autoplay), then starts the engine with Web Audio playback: frames are
+ * timed by the audio clock.
  */
 async function start(): Promise<void> {
-  const source = await HttpDataSource.open('/data/');
+  const source = await HttpDataSource.open(host.dataUrl);
   const content = await loadDiscContent(source);
-  const context = await waitForTap(gate!, startAudio);
+  let context: ReturnType<typeof startAudio>;
+  if (host.autoplay) {
+    gate!.hidden = true;
+    context = startAudio();
+  } else {
+    context = await waitForTap(gate!, startAudio);
+  }
   let audio: AudioSink;
   if (context === null) {
     console.warn('no Web Audio: animations play without sound');
@@ -348,8 +369,6 @@ function report(problem: unknown): void {
 }
 
 start().catch((error: unknown) => {
-  report(
-    new Error(`No disc data (run "pnpm data"): ${error instanceof Error ? error.message : String(error)}`),
-  );
+  report(new Error(`${host.noDataMessage}: ${error instanceof Error ? error.message : String(error)}`));
   gate.textContent = 'No disc data';
 });

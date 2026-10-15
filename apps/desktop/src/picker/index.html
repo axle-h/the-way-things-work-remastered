@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Way Things Work</title>
+    <link rel="stylesheet" href="./picker.css" />
+  </head>
+  <body>
+    <main>
+      <h1>The Way Things Work</h1>
+      <p>
+        This app plays Dorling Kindersley’s 1994 CD-ROM. It does not come with the disc: you need your own
+        copy.
+      </p>
+      <p>Choose your disc image (an <code>.iso</code> file of the CD), or the CD itself in its drive.</p>
+      <div class="buttons">
+        <button id="choose-iso" type="button">Choose a disc image…</button>
+        <button id="choose-folder" type="button">Choose the CD drive or folder…</button>
+      </div>
+      <p id="busy" role="status" hidden>Checking the disc…</p>
+      <p id="problem" role="alert" hidden></p>
+      <p id="current" hidden></p>
+      <div class="buttons" id="back-row" hidden>
+        <button id="back" type="button">Back to the app</button>
+      </div>
+      <p class="note">
+        The disc is read where it is: nothing is copied or sent anywhere. The app remembers your choice;
+        change it later in Settings (the gear) → Change disc…
+      </p>
+    </main>
+    <script type="module" src="./picker.ts"></script>
+  </body>
+</html>

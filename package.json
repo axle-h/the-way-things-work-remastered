@@ -11,6 +11,8 @@
     "dev": "pnpm --filter @twtw/web dev",
     "build": "pnpm --filter @twtw/web build",
     "serve": "node apps/server/src/main.ts",
+    "desktop": "pnpm --filter @twtw/desktop build && pnpm --filter @twtw/desktop start",
+    "desktop:package": "pnpm --filter @twtw/desktop build && pnpm --filter @twtw/desktop run package && pnpm --filter @twtw/desktop check:artefacts",
     "data": "node tools/data/src/main.ts",
     "refcapture": "node tools/refcapture/src/main.ts",
     "compare": "node tools/compare/src/main.ts",

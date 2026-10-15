@@ -5,9 +5,9 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MANIFEST_NAME } from '@twtw/engine';
 import { openIso } from '@twtw/formats';
+import { buildManifest, openFileSource } from '@twtw/node';
 import { extractIso } from './extract.ts';
-import { openFileSource } from './file-source.ts';
-import { buildManifest, formatManifest } from './manifest.ts';
+import { formatManifest } from './manifest.ts';
 import { cdDir, locateIso } from './paths.ts';
 
 /** Extracts the disc image into a temporary directory, renamed to cdDir once complete. */

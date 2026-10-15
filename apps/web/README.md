@@ -44,6 +44,10 @@ Settings are kept in `localStorage` (`twtw.settings`), and the app works without
 - **Checks:** the scale and fit; that the backing store equals the viewport in device pixels; centring; the portrait screen; that a tap or click on a hotspot of the Airplane page reaches its target page; the Index soft keyboard; the fill setting surviving a reload; and Copy and Print (below).
 - **Screenshots:** set `TWTW_SCREENSHOTS=<dir>` to save one per device, and the printouts as PDFs (`print-base-A4.pdf`, `print-popup-Letter.pdf`, …). They show disc content, so keep them out of the repository. Playwright's own output goes to the gitignored `test-results/`.
 
+## Browser or desktop app (Phase 10)
+
+The same build runs in the desktop app (`apps/desktop`), which loads it over its own `app://twtw/` protocol and serves the user's disc image at `/data/`. `src/host.ts` is the one place that differs: it looks for the desktop app's preload bridge (`window.twtwDesktop`, typed in `src/desktop-bridge.ts`). With it, the app starts without the "tap to start" gate (the desktop app allows autoplay), **Copy picture** hands the PNG to the system clipboard, and the settings show **Change disc…**. Without it, it is the browser: `/data/` from the server, `navigator.clipboard`, the gate. Printing is `window.print()` in both.
+
 ## Copy and print (Phase 8)
 
 What the original copies and prints is in `docs/formats/special-screens.md` §4: the page's picture with a 40-row white band and the copyright line, 638×499 for a base page, W×(H+40) for a popup. The engine builds it (`Engine.copyImage`); `src/picture-output.ts` copies and prints it; the sizes and layout are pure functions in `src/print-layout.ts`, and the PNG encoder is `src/png.ts` (a palette PNG, deflated with the platform's `CompressionStream`; the canvas encoder stands in where that is missing).

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@twtw/engine": "workspace:*",
-    "@twtw/formats": "workspace:*"
+    "@twtw/formats": "workspace:*",
+    "@twtw/node": "workspace:*"
   }
 }

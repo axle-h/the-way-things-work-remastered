@@ -1,0 +1,30 @@
+{
+  "name": "@twtw/desktop",
+  "productName": "The Way Things Work",
+  "version": "0.1.0",
+  "description": "The Way Things Work desktop app: Electron around the web build, reading your own disc image.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter @twtw/web build && node scripts/build.ts",
+    "start": "electron dist/app",
+    "package": "node scripts/package.ts",
+    "check:artefacts": "node scripts/check-no-disc-data.ts",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.e2e.json"
+  },
+  "dependencies": {
+    "@twtw/engine": "workspace:*",
+    "@twtw/formats": "workspace:*",
+    "@twtw/node": "workspace:*"
+  },
+  "devDependencies": {
+    "@electron/asar": "4.3.1",
+    "@electron/fuses": "2.1.3",
+    "@electron/packager": "20.3.0",
+    "@playwright/test": "1.64.0",
+    "@twtw/web": "workspace:*",
+    "electron": "44.7.0",
+    "vite": "8.3.3"
+  }
+}

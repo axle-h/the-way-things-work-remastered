@@ -42,16 +42,26 @@ export function findPictureOutput(root: ParentNode = document): PictureOutputEle
 
 export type CopyResult = 'copied' | 'shown';
 
+export interface PictureOutputOptions {
+  /**
+   * Puts a PNG on the clipboard in place of `navigator.clipboard` (the desktop app's system
+   * clipboard, `host.ts`). It rejects if it cannot; the picture is then shown instead.
+   */
+  readonly writeClipboardPng?: ((png: Uint8Array) => Promise<void>) | undefined;
+}
+
 export class PictureOutput {
   readonly #elements: PictureOutputElements;
+  readonly #writeClipboardPng: ((png: Uint8Array) => Promise<void>) | undefined;
   #overlayUrl: string | null = null;
   #printUrl: string | null = null;
   #toastTimer: ReturnType<typeof setTimeout> | undefined;
   /** Set while our own print is being prepared or shown, so `beforeprint` leaves it alone. */
   #printing = false;
 
-  constructor(elements: PictureOutputElements) {
+  constructor(elements: PictureOutputElements, options: PictureOutputOptions = {}) {
     this.#elements = elements;
+    this.#writeClipboardPng = options.writeClipboardPng;
     elements.close.addEventListener('click', () => this.closeOverlay());
     elements.overlay.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') this.closeOverlay();
@@ -74,11 +84,20 @@ export class PictureOutput {
   /**
    * Copies the captioned picture at {@link COPY_SCALE} as a PNG. Call it from the user's gesture:
    * the clipboard is written at once, with the PNG to follow. Where the clipboard is missing or
-   * refuses, shows the picture instead, to copy with a long press or right click, or to save.
+   * refuses, shows the picture instead, to copy with a long press or right click, or to save. The
+   * host's clipboard writer, when given, is used instead of the browser's.
    */
   async copy(image: IndexedImage, palette: Uint8Array, name: string): Promise<CopyResult> {
     const png = pngBlob(upscaleIndexed(image, COPY_SCALE), palette);
-    if (clipboardTakesPng()) {
+    if (this.#writeClipboardPng !== undefined) {
+      try {
+        await this.#writeClipboardPng(new Uint8Array(await (await png).arrayBuffer()));
+        this.#toast('Picture copied');
+        return 'copied';
+      } catch (error) {
+        console.warn('copy: the clipboard refused the picture', error);
+      }
+    } else if (clipboardTakesPng()) {
       try {
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
         this.#toast('Picture copied');

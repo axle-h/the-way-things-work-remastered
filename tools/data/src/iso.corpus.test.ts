@@ -8,8 +8,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { MANIFEST_NAME, parseManifest, type Manifest } from '@twtw/engine';
 import { openIso, type IsoEntry, type IsoImage } from '@twtw/formats';
+import { openFileSource, type FileBlockSource } from '@twtw/node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { openFileSource, type FileBlockSource } from './file-source.ts';
 import { cdDir, locateIso } from './paths.ts';
 
 const manifestPath = join(cdDir, MANIFEST_NAME);
