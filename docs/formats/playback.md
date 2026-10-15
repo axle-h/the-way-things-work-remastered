@@ -100,11 +100,12 @@ Provenance: parts `1028:987a`, click `1028:9dac`, message `1028:8566`, start `10
 
 A movie with a small control strip: its animation file is the movie, whose frames form the movie screen in panel coordinates (§3), and the strip is the 74×22 bitmap control of rendering.md §5. Of the 59 on the disc, 22 are on Principles of Science movie pages (base), 9 on other article base pages and 28 on popups [V].
 - **Parts** (offsets from the strip's top-left): the play button at (20,3) in three pictures (bitmaps 116, 119, 120: play, and two others, probably pause and a disabled or pressed state [H]); the rewind button at (3,3) in two (115, 117); bitmap 118 at (38,6); the progress indicator, bitmap 159, at (39,7); the background, bitmap 101, at (0,0).
+- **While playing** [V] (the 22 movie pages' Wine captures, matched pixel for pixel): rewind is bitmap 117 and play is replaced by 119, the pause button. At rest it is 115 and 116, so 115 is the greyed rewind; 120 has 115's greyed colours, so it is probably the greyed play button [H]. The progress indicator is the **left edge of bitmap 159** (a darker fill with a one-pixel border) drawn at (39,7), 9 rows high and as many columns wide as the progress, inside the slot of bitmap 101 that spans columns 39–68 (30 columns; column 69 is the slot's black edge). The captures show 1 to 4 columns after 0.2–2.4 s of films of 24–60 s; how the width follows the position is not measurable under Wine's stall [H: the remake uses ⌈30 × position / length⌉, at least 1, while not at rest].
 - **Play button:** toggles between playing and paused. Starting stops all media first; if something was playing, the press only stops it [C]. While playing, the play picture is replaced by the pause picture (seen in the movie pages' Wine captures, rendering.md §8 [V]).
 - **Rewind button:** stops all media; if nothing was playing, rewinds the movie to its start and returns the buttons to rest.
 - **Messages:** the control answers one message, the number stored in its last `i16` (59 on every control), by acting as if its play button had been clicked at its top-left + (1,1). `SENDMESSAGE (181, 59)` is "press play on control 181" (behaviour.md §4.5). The 22 Principles movie pages send it from their panel's open handler, so their movie starts when the page opens; 76 hotspots send it on click (clicking the movie screen or a label plays or pauses it).
 - **First trailing `u16`** (0 on the disc): 1 would start the movie when the panel opens.
-- **Second trailing `u16`** (0 on the 22 movie pages, 1 elsewhere): at the end of the movie, 1 rewinds it and returns the strip to rest; 0 leaves it at its last frame with the buttons in their ended state [C, details H].
+- **Second trailing `u16`** (0 on the 22 movie pages, 1 elsewhere): at the end of the movie, 1 rewinds it and returns the strip to rest; 0 leaves it at its last frame with the buttons in their ended state [C, details H]. The remake shows the ended state as rewind 117, play 120 and a full indicator, and a press of play then starts the movie again from its beginning [H].
 - **Progress indicator:** bitmap 159 is drawn into the strip, positioned by the playback position, and is invisible at rest [V at rest only]. Its exact geometry while playing is [H]; capture it in DOSBox-X.
 
 ## 8. What to check against the original
@@ -112,7 +113,7 @@ Wine stalls animations after a few seconds (reference-environments.md), so use *
 1. Frame timing: record a screen video of `AIRP0M0A` (the Airplane propeller, 5 frames) and the title animation with audio, and compare frame change times with §2. Expect frame *k* at the start of sound chunk *k*.
 2. A sound started by a PlayWave, CHANGEPAGE handler keeps playing on the new popup (§4.2), e.g. the `\PRINCIPL\QLIT\` popups.
 3. Clicking a hotspot while an animation plays stops it and leaves the frame on screen (§3, §5).
-4. A Principles movie: the play/pause toggle, rewind, the progress indicator while playing, and the strip at the end (second trailing `u16` = 0).
+4. A Principles movie: the play/pause toggle, rewind, the progress indicator's width against the playing position, and the strip at the end (second trailing `u16` = 0): is play greyed (120), and what does a press of play do then?
 5. An AnimHotspot with `0x40`: after the end, does the last frame stay or does the start frame show?
 
 Under Wine, file opens (e.g. `strace -f -e trace=openat` on the Wine processes) can confirm §1: a page's PlayPics and PlayWave files are opened when the page loads, before any click.

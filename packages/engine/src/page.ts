@@ -17,18 +17,59 @@ import {
   type Template,
 } from '@twtw/formats';
 import { paletteIndexOf } from './colours.ts';
-import { IndexedCanvas } from './render/canvas.ts';
+import { PanelLayer } from './render/layer.ts';
 import { ProgramBitmap, type PictureStore } from './pictures.ts';
 import type { IndexedImage } from './screen.ts';
+import { scrollBitmapState, type ScrollPart, type ScrollState } from './special/scroll.ts';
 
 /** What a display object draws at rest; `null` for objects that draw nothing (hotspots etc.). */
 export type ObjectLook =
-  /** A picture copied opaque at the rectangle's top-left: Bitmap, CancelButton, AnimationControl. */
+  /** A picture copied opaque at the rectangle's top-left: Bitmap, AnimationControl. */
   | { readonly kind: 'picture'; readonly picture: IndexedImage | null }
-  /** The rectangle's size of the picture, from its top row (scroll position 0). */
-  | { readonly kind: 'scrollBitmap'; readonly picture: IndexedImage | null }
-  /** The eight part bitmaps of a scroll bar, in data order (rendering.md §5). */
-  | { readonly kind: 'scrollBar'; readonly parts: readonly (IndexedImage | null)[] };
+  /** The CancelButton: its picture at rest, and the one drawn while it is pressed. */
+  | { readonly kind: 'button'; readonly picture: IndexedImage | null; readonly pressed: IndexedImage | null }
+  /**
+   * The rectangle's size of the picture, from the row of its scroll position (special-screens.md
+   * §3.2). `scroll` is shared with the partner ScrollBar.
+   */
+  | { readonly kind: 'scrollBitmap'; readonly picture: IndexedImage | null; readonly scroll: ScrollState }
+  /**
+   * The eight part bitmaps of a scroll bar, in data order (rendering.md §5), its position (the
+   * partner ScrollBitmap's) and the part shown pressed.
+   */
+  | {
+      readonly kind: 'scrollBar';
+      readonly parts: readonly (IndexedImage | null)[];
+      scroll: ScrollState;
+      pressed: ScrollPart | null;
+    }
+  /** An AnimationControl's strip, which changes while its movie plays (playback.md §7). */
+  | { readonly kind: 'control'; readonly strip: ControlStrip };
+
+/** Where an AnimationControl's movie is, as its strip shows it (playback.md §7). */
+export type ControlState =
+  /** At its start: rewind greyed, play. */
+  | 'rest'
+  /** Playing: rewind, pause, progress. */
+  | 'playing'
+  /** Stopped part-way by its pause button: rewind, play, progress. */
+  | 'paused'
+  /** At its end, not rewound: rewind, play greyed, progress full. */
+  | 'ended';
+
+/** An AnimationControl strip: its parts and what it shows. The media changes `state` and `progress`. */
+export interface ControlStrip {
+  state: ControlState;
+  /** Columns of the progress indicator shown, 0 … {@link CONTROL_PROGRESS.width}. */
+  progress: number;
+  readonly background: IndexedImage | null;
+  readonly rewind: IndexedImage | null;
+  readonly rewindActive: IndexedImage | null;
+  readonly play: IndexedImage | null;
+  readonly pause: IndexedImage | null;
+  readonly playEnded: IndexedImage | null;
+  readonly indicator: IndexedImage | null;
+}
 
 export interface PlacedObject {
   readonly object: DisplayObject;
@@ -41,16 +82,23 @@ export interface PlacedObject {
   readonly look: ObjectLook | null;
 }
 
-/** The A–Z machine dial's state (rendering.md §6). */
+/** The A–Z machine dial's state (rendering.md §6, behaviour.md §7). */
 export interface DialState {
   /** Current letter, 0 = A. */
   letter: number;
   /** Lamp state: the program alternates it every second, starting with "on" after the first tick. */
   lampOn: boolean;
+  /** The "go" animation is running: the dial ignores presses. */
+  going: boolean;
+  /** "Go" was pressed: the pressed button shows until the page changes. */
+  goPressed: boolean;
+  /** The lamp has been drawn since "go" was pressed, so it shows over the pressed button. */
+  lampOverGo: boolean;
   /** Each letter's still picture, `null` if it failed to load. */
   readonly letters: readonly (IndexedImage | null)[];
   readonly lampOnPicture: IndexedImage | null;
   readonly lampOffPicture: IndexedImage | null;
+  readonly goPicture: IndexedImage | null;
 }
 
 export type PanelSource =
@@ -79,6 +127,8 @@ export interface PanelInstance {
   readonly objects: readonly PlacedObject[];
   /** Present on the A–Z dial panel. */
   readonly dial: DialState | null;
+  /** Animation frames drawn over the panel since it was painted (playback.md §3). */
+  readonly layer: PanelLayer;
 }
 
 export interface PageInstance {
@@ -100,13 +150,21 @@ export interface PageLoadContext {
   readonly palette: Uint8Array;
 }
 
-/** AnimationControl strip size and part offsets (rendering.md §5). */
-const CONTROL_WIDTH = 74;
-const CONTROL_HEIGHT = 22;
+/** AnimationControl strip size (rendering.md §5). */
+export const CONTROL_WIDTH = 74;
+export const CONTROL_HEIGHT = 22;
+/** Part offsets from the strip's top-left (rendering.md §5, playback.md §7). */
+export const CONTROL_PARTS = {
+  rewind: { x: 3, y: 3, width: 15, height: 16 },
+  play: { x: 20, y: 3, width: 16, height: 16 },
+} as const;
+/** The progress indicator's slot in the strip: bitmap 159 from its left edge, this wide at most. */
+export const CONTROL_PROGRESS = { x: 39, y: 7, width: 30, height: 9 } as const;
 /** Where the A–Z dial panel draws the current letter's picture and the lamp (rendering.md §6). */
 export const DIAL_POSITIONS = {
   letter: { x: 161, y: 101 },
   lamp: { x: 334, y: 350 },
+  go: { x: 320, y: 335 },
 } as const;
 
 /** Loads a page and everything it draws at rest. Throws if the page or its template is invalid. */
@@ -141,8 +199,11 @@ export async function instantiatePage(context: PageLoadContext, ref: PageRef): P
   const panels = await Promise.all(
     entries.map(async ({ source, slot, panel }): Promise<PanelInstance> => {
       const objects = panel === null ? [] : await Promise.all(panel.objects.map((o) => loader.place(o)));
+      linkScrollBars(objects);
       const dial = panel?.kind === 'azDial' ? await loader.dial(panel) : null;
       const extent = objectExtent(objects);
+      const width = slot !== null && slot.width !== 0 ? slot.width : extent.width;
+      const height = slot !== null && slot.height !== 0 ? slot.height : extent.height;
       return {
         id: panel?.id ?? slot?.panelId ?? 0,
         type: panel?.kind ?? slot?.panelType ?? 'display',
@@ -151,11 +212,12 @@ export async function instantiatePage(context: PageLoadContext, ref: PageRef): P
         panel,
         x: slot?.x ?? 0,
         y: slot?.y ?? 0,
-        width: slot !== null && slot.width !== 0 ? slot.width : extent.width,
-        height: slot !== null && slot.height !== 0 ? slot.height : extent.height,
+        width,
+        height,
         colour: slot === null ? 0 : paletteIndexOf(context.palette, slot.colour),
         objects,
         dial,
+        layer: new PanelLayer(width, height),
       };
     }),
   );
@@ -163,6 +225,21 @@ export async function instantiatePage(context: PageLoadContext, ref: PageRef): P
   const width = template.width !== 0 ? template.width : Math.max(0, ...panels.map((p) => p.x + p.width));
   const height = template.height !== 0 ? template.height : Math.max(0, ...panels.map((p) => p.y + p.height));
   return { ref, page, template, panels, width, height, problems };
+}
+
+/**
+ * Links each ScrollBar whose `u16` is 1 to its partner, the first ScrollBitmap of its panel with
+ * the id in its first `i16` (special-screens.md §3.1–3.2): the bar takes over the partner's range
+ * and page, and both share one position. Both start at the initial position, 0 on the disc.
+ */
+function linkScrollBars(objects: readonly PlacedObject[]): void {
+  for (const { object, look } of objects) {
+    if (object.kind !== 'scrollBar' || look?.kind !== 'scrollBar' || object.unknown1 !== 1) continue;
+    const partner = objects.find((candidate) => candidate.object.id === object.unknown2);
+    if (partner?.look?.kind !== 'scrollBitmap') continue;
+    look.scroll = partner.look.scroll;
+    look.scroll.position = Math.max(0, Math.min(look.scroll.max, object.unknown5));
+  }
 }
 
 /**
@@ -205,19 +282,43 @@ class ObjectLoader {
       }
       case 'cancelButton':
         // The button's picture is EXE bitmap 170; its three strings are unused (rendering.md §5).
-        return { object, rect, look: { kind: 'picture', picture: this.#resource(ProgramBitmap.cancel) } };
+        return {
+          object,
+          rect,
+          look: {
+            kind: 'button',
+            picture: this.#resource(ProgramBitmap.cancel),
+            pressed: this.#resource(ProgramBitmap.cancelPressed),
+          },
+        };
       case 'animationControl': {
         const placed =
           rect === null
             ? null
             : { ...rect, right: rect.left + CONTROL_WIDTH, bottom: rect.top + CONTROL_HEIGHT };
-        return { object, rect: placed, look: { kind: 'picture', picture: this.#controlStrip() } };
+        return { object, rect: placed, look: { kind: 'control', strip: this.#controlStrip() } };
       }
-      case 'scrollBitmap':
-        return { object, rect, look: { kind: 'scrollBitmap', picture: await this.#picture(object.file) } };
+      case 'scrollBitmap': {
+        const picture = await this.#picture(object.file);
+        // The maximum is recomputed from the sizes; the stored one agrees (special-screens.md §3.1).
+        const scroll = scrollBitmapState(
+          object.rect.bottom - object.rect.top,
+          picture?.height ?? 0,
+          object.unknown5,
+        );
+        return { object, rect, look: { kind: 'scrollBitmap', picture, scroll } };
+      }
       case 'scrollBar': {
         const parts = await Promise.all(object.parts.map((name) => this.#picture(name)));
-        return { object, rect, look: { kind: 'scrollBar', parts } };
+        // Its own range until it is linked to its partner (none unlinked on the disc).
+        const max = Math.max(0, object.unknown4 - object.unknown3);
+        const scroll: ScrollState = {
+          position: Math.max(0, Math.min(max, object.unknown5 - object.unknown3)),
+          max,
+          page: 1,
+          distance: 0,
+        };
+        return { object, rect, look: { kind: 'scrollBar', parts, scroll, pressed: null } };
       }
       case 'hotspot':
       case 'azHotspot':
@@ -235,32 +336,29 @@ class ObjectLoader {
     return {
       letter: 0,
       lampOn: false,
+      going: false,
+      goPressed: false,
+      lampOverGo: false,
       letters,
       lampOnPicture: this.#resource(ProgramBitmap.lampOn),
       lampOffPicture: this.#resource(ProgramBitmap.lampOff),
+      goPicture: this.#resource(ProgramBitmap.dialGo),
     };
   }
 
-  /**
-   * The AnimationControl's 74×22 strip at rest (rendering.md §5): the background with the rewind
-   * and play buttons. The pressed and pause variants (117–120) and the progress indicator are
-   * for playback (Phase 5).
-   */
-  #controlStrip(): IndexedImage | null {
-    const background = this.#resource(ProgramBitmap.animationControl);
-    if (background === null) return null;
-    const strip = {
-      width: CONTROL_WIDTH,
-      height: CONTROL_HEIGHT,
-      pixels: new Uint8Array(CONTROL_WIDTH * CONTROL_HEIGHT),
+  /** The AnimationControl's 74×22 strip (rendering.md §5), at rest. */
+  #controlStrip(): ControlStrip {
+    return {
+      state: 'rest',
+      progress: 0,
+      background: this.#resource(ProgramBitmap.animationControl),
+      rewind: this.#resource(ProgramBitmap.animationRewind),
+      rewindActive: this.#resource(ProgramBitmap.animationRewindActive),
+      play: this.#resource(ProgramBitmap.animationPlay),
+      pause: this.#resource(ProgramBitmap.animationPause),
+      playEnded: this.#resource(ProgramBitmap.animationPlayEnded),
+      indicator: this.#resource(ProgramBitmap.animationProgress),
     };
-    const canvas = new IndexedCanvas(strip);
-    canvas.draw(background, 0, 0);
-    const rewind = this.#resource(ProgramBitmap.animationRewind);
-    if (rewind !== null) canvas.draw(rewind, 3, 3);
-    const play = this.#resource(ProgramBitmap.animationPlay);
-    if (play !== null) canvas.draw(play, 20, 3);
-    return strip;
   }
 
   /** A picture by database name (`.DIB` in the page directory, a disc path, or `@` resource). */

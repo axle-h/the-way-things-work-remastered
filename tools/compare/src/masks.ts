@@ -20,6 +20,7 @@ import {
 } from '@twtw/formats';
 import {
   DIAL_POSITIONS,
+  INDEX_CONTROLS,
   WINE,
   type DataSource,
   type PageInstance,
@@ -214,6 +215,22 @@ export async function deriveMasks(input: MaskInput, animations: AnimationCatalog
     });
   }
 
+  // The Index page's text controls: our font differs from Windows' (and Wine's) raster fonts. The
+  // scroll bar and the buttons are the program's bitmaps and must match.
+  for (const window of input.windows) {
+    if (window.page.page.pageType !== 'index') continue;
+    for (const control of ['edit', 'list'] as const) {
+      const { x, y, width, height } = INDEX_CONTROLS[control];
+      const left = window.x + x;
+      const top = window.y + window.caption + y;
+      masks.push({
+        reason: 'indexText',
+        rect: { left, top, right: left + width, bottom: top + height },
+        detail: `the Index ${control === 'edit' ? 'edit box' : 'list'} of page ${window.page.ref}`,
+      });
+    }
+  }
+
   // The A–Z dial's lamp.
   for (const { page, x, y } of onScreen) {
     for (const panel of page.panels) {
@@ -309,7 +326,7 @@ function finishedChangePage(object: AnimatedObject): boolean {
 
 /**
  * The AnimationControls a panel's on_open SENDMESSAGE handlers address: the control whose object
- * id is the message's first value (181 on the disc), or every control of the panel if none is.
+ * id is the message's target (181 on the disc), or every control of the panel if none is.
  */
 function startedControls(panel: PanelInstance) {
   const messages = (panel.panel?.handlers ?? [])
@@ -320,9 +337,7 @@ function startedControls(panel: PanelInstance) {
   const controls = panel.objects.flatMap(({ object, rect }) =>
     object.kind === 'animationControl' ? [{ object, rect }] : [],
   );
-  const addressed = controls.filter(({ object }) =>
-    messages.some((message) => message.message === object.id),
-  );
+  const addressed = controls.filter(({ object }) => messages.some((message) => message.target === object.id));
   return addressed.length > 0 ? addressed : controls;
 }
 

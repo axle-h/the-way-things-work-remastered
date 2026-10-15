@@ -4,7 +4,14 @@
  * asserted; nothing from the disc is stored in the repository.
  */
 import { collectReachable, type Page } from '@twtw/formats';
-import { CLIENT_HEIGHT, CLIENT_WIDTH, createFramebuffer, Engine, windowSize } from '@twtw/engine';
+import {
+  CLIENT_HEIGHT,
+  CLIENT_WIDTH,
+  createFramebuffer,
+  Engine,
+  stalledAutostartMedia,
+  windowSize,
+} from '@twtw/engine';
 import { beforeAll, expect, it } from 'vitest';
 import { DirectoryDataSource } from '../src/index.ts';
 import { describeIfAvailable, discRoot, missingDiscFile } from './disc.ts';
@@ -14,7 +21,8 @@ describeIfAvailable('rendering every page (disc)', missingDiscFile('DKCODE/TWTW.
   let pages: Page[];
 
   beforeAll(async () => {
-    engine = await Engine.load(await DirectoryDataSource.open(discRoot));
+    // Pages that move on when their animation ends stay put: each is rendered as it opens.
+    engine = await Engine.load(await DirectoryDataSource.open(discRoot), { media: stalledAutostartMedia() });
     pages = [...collectReachable(engine.content.database).pages.values()];
   });
 
@@ -24,7 +32,8 @@ describeIfAvailable('rendering every page (disc)', missingDiscFile('DKCODE/TWTW.
     expect(base).toHaveLength(397);
     const problems: string[] = [];
     for (const page of base) {
-      const instance = await engine.changePage(page.ref);
+      await engine.reset(page.ref);
+      const instance = engine.basePage!;
       problems.push(...instance.problems.map((problem) => `${page.ref}: ${problem}`));
       engine.render(framebuffer);
       // Base templates cover the whole client area with panels (rendering.md §1).
@@ -36,7 +45,7 @@ describeIfAvailable('rendering every page (disc)', missingDiscFile('DKCODE/TWTW.
 
   it('renders all 1,259 popups and the index page over a base page', async () => {
     const framebuffer = createFramebuffer();
-    await engine.changePage(engine.content.database.product.startupPage!);
+    await engine.reset(engine.content.database.product.startupPage!);
     const windows = pages.filter((page) => page.pageType === 'popup' || page.pageType === 'index');
     expect(windows).toHaveLength(1260);
     const problems: string[] = [];
@@ -45,10 +54,11 @@ describeIfAvailable('rendering every page (disc)', missingDiscFile('DKCODE/TWTW.
     let shadowPastBottom = 0;
     let overNavBar = 0;
     for (const page of windows) {
-      const instance = await engine.openPopup(page.ref);
+      expect(await engine.openPage(page.ref), `page ${page.ref}`).toBe(true);
+      const window = engine.windows.at(-1)!;
+      const instance = window.page;
       problems.push(...instance.problems.map((problem) => `${page.ref}: ${problem}`));
       engine.render(framebuffer);
-      const window = engine.windows.at(-1)!;
       const { width, height } = windowSize(window);
       expect(instance.width * instance.height, `page ${page.ref}`).toBeGreaterThan(0);
       if (page.pageType === 'popup') {
@@ -63,7 +73,7 @@ describeIfAvailable('rendering every page (disc)', missingDiscFile('DKCODE/TWTW.
         }
         if (window.x < 94) overNavBar++;
       }
-      engine.closePopup();
+      await engine.closePage(page.ref);
     }
     expect(problems).toEqual([]);
     expect({ pastRight, maxRight, shadowPastBottom, overNavBar }).toEqual({

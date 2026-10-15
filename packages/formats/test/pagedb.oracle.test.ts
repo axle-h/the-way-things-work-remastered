@@ -302,7 +302,7 @@ function actionJson(a: Action): Json {
     case 'closePage':
       return { action: 'Closepage', page: a.page };
     case 'sendMessage':
-      return { action: 'SENDMESSAGE', msg: a.message, param: a.parameter };
+      return { action: 'SENDMESSAGE', msg: a.target, param: a.message };
     case 'productOption':
       return { action: 'TWTWOPTION', option: a.option };
     case 'playWave':

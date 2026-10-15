@@ -4,15 +4,18 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PageRef, Rect } from '@twtw/formats';
-import type { StepEffect, ScreenState } from './step-dispatch.ts';
+import type { ClickStep, ScreenState } from './state.ts';
 
-export interface SidecarStep {
+/** What refcapture predicted a click does, from the database (tools/refcapture). */
+export type StepEffect =
+  | { readonly kind: 'changePage' | 'openPage' | 'closePage'; readonly page: PageRef }
+  | { readonly kind: 'closePopups' }
+  | { readonly kind: 'none' };
+
+export interface SidecarStep extends ClickStep {
   /** `page:panel:object`. */
   readonly step: string;
-  readonly page: PageRef;
-  readonly panel: number;
-  readonly object: number;
-  /** What refcapture predicted the click does. */
+  /** What refcapture predicted the click does; informative only, the replay clicks for real. */
   readonly effect: StepEffect;
 }
 

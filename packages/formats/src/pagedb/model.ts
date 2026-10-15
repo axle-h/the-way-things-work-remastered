@@ -306,10 +306,12 @@ export interface ClosePageAction {
   readonly page: PageRef | null;
 }
 
+/** Send a message to an object of the handler's panel (behaviour.md §4.5). */
 export interface SendMessageAction {
   readonly kind: 'sendMessage';
+  /** Id of the object that receives the message, in the panel that owns the handler. */
+  readonly target: number;
   readonly message: number;
-  readonly parameter: number;
 }
 
 export interface PlayWaveAction {

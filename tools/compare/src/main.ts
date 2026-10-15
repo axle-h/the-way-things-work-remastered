@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { DATABASE_PATH } from '@twtw/engine';
 import { DirectoryDataSource } from '@twtw/node';
-import { Comparator, type CaptureResult } from './compare.ts';
+import { Comparator, type CaptureResult, type MediaMode } from './compare.ts';
 import { REASONS, type Reason } from './diff.ts';
 import { defaultOutDir, discRoot, refRoot } from './paths.ts';
 import { listReferences, matchesFilter } from './references.ts';
@@ -25,6 +25,9 @@ writes an HTML report and results.json to ${defaultOutDir} (or $TWTW_COMPARE_OUT
 options:
   --out DIR            write the report here
   --images MODE        all (default), differing or none
+  --media MODE         stall (default: animations that start with their page stall, as under
+                       Wine) or settle (play everything out on a virtual clock; Wine's captures
+                       will differ)
   --quiet              print only the summary
   --help
 `;
@@ -34,6 +37,7 @@ const { values, positionals } = parseArgs({
   options: {
     out: { type: 'string' },
     images: { type: 'string', default: 'all' },
+    media: { type: 'string', default: 'stall' },
     quiet: { type: 'boolean', default: false },
     help: { type: 'boolean', default: false },
   },
@@ -46,6 +50,11 @@ if (values.help) {
 const images = values.images as ImageMode;
 if (!['all', 'differing', 'none'].includes(images)) {
   process.stderr.write(`--images must be all, differing or none\n`);
+  process.exit(2);
+}
+const mediaMode = values.media as MediaMode;
+if (!['stall', 'settle'].includes(mediaMode)) {
+  process.stderr.write(`--media must be stall or settle\n`);
   process.exit(2);
 }
 if (!existsSync(resolve(discRoot, ...DATABASE_PATH.split('/')))) {
@@ -69,7 +78,7 @@ if (selected.length === 0) {
 }
 
 const outDir = resolve(values.out ?? defaultOutDir);
-const comparator = await Comparator.open(await DirectoryDataSource.open(discRoot));
+const comparator = await Comparator.open(await DirectoryDataSource.open(discRoot), mediaMode);
 const results: CaptureResult[] = [];
 for (const reference of selected) {
   const comparison = await comparator.compare(reference);

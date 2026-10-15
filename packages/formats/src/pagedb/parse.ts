@@ -477,7 +477,7 @@ class RecordReader {
       case 'closePage':
         return { kind, page: this.pageRef() };
       case 'sendMessage':
-        return { kind, message: r.i16(), parameter: r.i16() };
+        return { kind, target: r.i16(), message: r.i16() };
       case 'playWave':
         return {
           kind,

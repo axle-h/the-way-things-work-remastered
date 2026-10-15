@@ -9,13 +9,30 @@ import type { IndexedImage } from './screen.ts';
 
 /** Bitmap resources of `TWTW.EXE` that the engine draws itself (program.md, Bitmaps). */
 export const ProgramBitmap = {
+  /** AnimationControl parts (rendering.md §5, playback.md §7). */
   animationControl: 101,
+  /** Rewind, at rest (greyed). */
   animationRewind: 115,
+  /** Play, at rest and paused. */
   animationPlay: 116,
+  /** Rewind, while the movie is not at its start. */
+  animationRewindActive: 117,
+  /** Pause, while the movie plays. */
+  animationPause: 119,
+  /** Play, greyed: the movie has ended. */
+  animationPlayEnded: 120,
+  /** The progress indicator. */
   animationProgress: 159,
+  /** The Index page's OK button, and pressed (special-screens.md §1.2). */
+  ok: 168,
+  okPressed: 169,
   cancel: 170,
+  /** The CancelButton while pressed (behaviour.md §3). */
+  cancelPressed: 171,
   lampOn: 172,
   lampOff: 173,
+  /** The A–Z dial's pressed "go" button (behaviour.md §7). */
+  dialGo: 352,
 } as const;
 
 /** Default budget for decoded `.DIB` files kept for reuse (pictures in use are held by pages). */

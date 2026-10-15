@@ -5,8 +5,8 @@ import { createFramebuffer, type Engine } from '@twtw/engine';
 import { encodeRgbPng, indexedToRgb, type RgbImage } from '@twtw/node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Comparator, totals, unpaintedStrips } from './compare.ts';
-import type { Reference, Sidecar, SidecarStep } from './references.ts';
-import { showState, type ScreenState, type StepEffect } from './step-dispatch.ts';
+import type { Reference, Sidecar, SidecarStep, StepEffect } from './references.ts';
+import { showState, type ScreenState } from './state.ts';
 import { CONTENT, disc, FILL, INTRO_FRAMES, ref } from './test-disc.ts';
 
 let dir: string;
@@ -74,9 +74,14 @@ function capture(
   return { id: `${sidecar.page}/${name}`, page: sidecar.page, name, png, sidecar };
 }
 
-function step(page: number, object: number, effect: StepEffect): SidecarStep {
-  return { step: `${page}:1:${object}`, page, panel: 1, object, effect };
+function step(page: number, object: number, effect: StepEffect, x: number, y: number): SidecarStep {
+  return { step: `${page}:1:${object}`, page, panel: 1, object, clientPoint: { x, y }, effect };
 }
+
+// Where the steps click: the article's hotspot (10,10)–(50,30) in the content panel, and the
+// popup's hotspot (5,5)–(25,15), its window at Wine's (111, 31) with the 8-pixel caption.
+const ARTICLE_HOTSPOT = [CONTENT.x + 20, CONTENT.y + 20] as const;
+const POPUP_HOTSPOT = [111 + 10, 31 + 8 + 10] as const;
 
 describe('Comparator', () => {
   it('finds a rendering of the same state exact', async () => {
@@ -109,7 +114,7 @@ describe('Comparator', () => {
       kind: 'path',
       actionPath: {
         start: ref('article'),
-        steps: [step(ref('article'), 1, { kind: 'openPage', page: ref('popup') })],
+        steps: [step(ref('article'), 1, { kind: 'openPage', page: ref('popup') }, ...ARTICLE_HOTSPOT)],
       },
       expectedState: state,
     });
@@ -130,8 +135,8 @@ describe('Comparator', () => {
       actionPath: {
         start: ref('article'),
         steps: [
-          step(ref('article'), 1, { kind: 'openPage', page: ref('popup') }),
-          step(ref('popup'), 1, { kind: 'changePage', page: ref('other') }),
+          step(ref('article'), 1, { kind: 'openPage', page: ref('popup') }, ...ARTICLE_HOTSPOT),
+          step(ref('popup'), 1, { kind: 'changePage', page: ref('other') }, ...POPUP_HOTSPOT),
         ],
       },
       expectedState: state,
@@ -139,18 +144,84 @@ describe('Comparator', () => {
     expect((await comparator.compare(reference)).result.status).toBe('exact');
   });
 
-  it('stops with an error when the database disagrees with the recorded click', async () => {
+  it('notes a click that hits another object of the panel than the recorded one', async () => {
     const state = { base: ref('article'), popups: [] };
     const reference = capture(await rendering(state), {
       page: ref('article'),
       kind: 'path',
-      actionPath: { start: ref('article'), steps: [step(ref('article'), 1, { kind: 'none' })] },
+      actionPath: {
+        start: ref('article'),
+        steps: [step(ref('article'), 1, { kind: 'none' }, CONTENT.x + 200, CONTENT.y + 200)],
+      },
+      expectedState: state,
+    });
+    const { result } = await comparator.compare(reference);
+    expect(result.status).toBe('exact');
+    expect(result.notes.join()).toMatch(/hits object 0/);
+  });
+
+  it('stops with an error when the recorded point is not on the recorded page', async () => {
+    const state = { base: ref('article'), popups: [] };
+    const reference = capture(await rendering(state), {
+      page: ref('article'),
+      kind: 'path',
+      actionPath: {
+        start: ref('article'),
+        steps: [step(ref('popup'), 1, { kind: 'none' }, ...ARTICLE_HOTSPOT)],
+      },
       expectedState: state,
     });
     const { result, images } = await comparator.compare(reference);
     expect(result.status).toBe('error');
-    expect(result.error).toMatch(/refcapture recorded/);
+    expect(result.error).toMatch(/hits .*:1:1/);
     expect(images).toBeUndefined();
+  });
+
+  it('stops with an error when the clicks lead elsewhere than refcapture expected', async () => {
+    const state = { base: ref('article'), popups: [] };
+    const reference = capture(await rendering(state), {
+      page: ref('article'),
+      kind: 'path',
+      actionPath: {
+        start: ref('article'),
+        steps: [step(ref('article'), 1, { kind: 'none' }, ...ARTICLE_HOTSPOT)],
+      },
+      expectedState: state,
+    });
+    const { result } = await comparator.compare(reference);
+    expect(result.status).toBe('error');
+    expect(result.error).toMatch(/the clicks lead to/);
+  });
+
+  it('recognises a last navigation click whose button animation Wine stalled', async () => {
+    const before = { base: ref('article'), popups: [] };
+    const reference = capture(await rendering(before), {
+      page: ref('other'),
+      kind: 'path',
+      actionPath: {
+        start: ref('article'),
+        steps: [
+          {
+            step: `${ref('article')}:849:1`,
+            page: ref('article'),
+            panel: 849,
+            object: 1,
+            clientPoint: { x: 40, y: 40 },
+            effect: { kind: 'changePage', page: ref('other') },
+          },
+        ],
+      },
+      expectedState: { base: ref('other'), popups: [] },
+      settle: {
+        settled: true,
+        timedOut: false,
+        cycleFrames: 3,
+        changingRect: { left: 5, top: 4, right: 88, bottom: 70 },
+      },
+    });
+    const { result } = await comparator.compare(reference);
+    expect(result).toMatchObject({ status: 'exact', rendered: before });
+    expect(result.notes.join()).toMatch(/stalled the last navigation button/);
   });
 
   it('compares only 634×454 when Wine left the rest black', async () => {
@@ -237,6 +308,26 @@ describe('Comparator', () => {
       rendered: state,
       byReason: { animationLeftover: 1 },
     });
+  });
+
+  it('in settle mode, plays everything out and compares the settled state', async () => {
+    const state = { base: ref('movie'), popups: [] };
+    const image = await rendering(state);
+    const reference = capture(image, {
+      page: ref('intro'),
+      expectedState: { base: ref('intro'), popups: [] },
+      autoAdvance: [ref('movie')],
+      expectedSettledPage: ref('movie'),
+      settledDiffersFromRequested: true,
+    });
+    const settling = await Comparator.open(disc.source, 'settle');
+    const { result } = await settling.compare(reference);
+    // The intro moved on to the movie page, whose movie played to its end: its frame is drawn,
+    // which the stand-in capture (the page at rest) does not show.
+    expect(result).toMatchObject({ autoAdvance: 'arrived', rendered: state });
+    expect(result.notes).toContain(`settled at page ${ref('movie')}`);
+    expect(settling.engine.media.isPlaying()).toBe(false);
+    expect(result.differing).toBeGreaterThan(0);
   });
 
   it('adds up results by status and reason', async () => {

@@ -100,7 +100,7 @@ While the Index window exists, the program has a keyboard hook on its own task. 
 After Up, Down, Page Up and Page Down the program selects the new entry, copies its name into the edit box (all selected) and keeps it visible (section 1.6).
 
 - Keys the hook passes on act as usual: in the edit box, characters, Backspace, Delete, Left, Right, Home and End edit the text (section 1.8); in the list, Home and End select the first and last entry, and a letter selects the next entry starting with that letter [H: standard list box keys]. The list's changes are copied into the edit box as for a click.
-- **Bugs in the original** [C]: Down on the last entry, and Page Down within 13 entries of the end (except from exactly entry *count* − 14), ask for an entry past the end. The list then refuses the selection, the edit box and scroll bar are not updated, and the remembered entry becomes invalid, so OK and Enter do nothing until another entry is selected. **The remake should clamp to the last entry** (a deliberate difference to agree with Alex).
+- **Bugs in the original** [C]: Down on the last entry, and Page Down within 13 entries of the end (except from exactly entry *count* − 14), ask for an entry past the end. The list then refuses the selection, the edit box and scroll bar are not updated, and the remembered entry becomes invalid, so OK and Enter do nothing until another entry is selected. **Deliberate difference** (a remake decision, open to review by Alex): the remake clamps Down and Page Down to the last entry.
 - The private message `0x403` that the hook sends goes to the Index window's own procedure and is consumed there. It never reaches the shared window procedure, so the "ignore the next mouse release" of behaviour.md §1.7 is not triggered by it [C].
 
 ### 1.10 Going to an entry [C]
@@ -128,7 +128,10 @@ This is a small child window of the program's own, separate from the ScrollBar d
 ### 1.12 For the remake
 - Draw the Index controls into the indexed framebuffer as part of the Index page, in the colours of section 1.3. The browser's own form controls must not be used; their look and behaviour differ.
 - Typing needs a keyboard. On touch devices (Phase 7) a soft keyboard can be offered by focusing a hidden text input that feeds the edit box; that is a presentation addition outside the original.
-- Touch: a tap on a row selects it, a second tap on the selected row (or OK) goes; dragging the thumb works as in section 1.11. Swiping the list to scroll would be an addition; agree it with Alex.
+- **Font**: the engine draws the list and the edit box with its own pixel font (`packages/engine/src/text/serif-font.ts`, drawn for this project), which keeps MS Serif 8 point's metrics: a 13-pixel cell, the baseline 11 rows down, capitals on rows 3–10, lowercase on rows 5–10, descenders to row 12, printable ASCII plus composed Latin-1 accented letters, and the soft hyphen as a dash one row lower than `-`. It is drawn with simulated bold as GDI would. Its glyphs are not Microsoft's, so the text areas differ from any capture (`indexText` in `tools/compare`).
+- **Choices where the spec is [H]** (to confirm in DOSBox-X, section 9): list names 1 pixel right of the row's left edge, edit text at the box's left edge, both at the cell's top; selection white on navy (index 4); the dotted focus rectangle inverts every other pixel of the selected row's frame (navy becomes index 251); a 1-pixel inverted caret, 13 rows, blinking every 530 ms; the edit box refuses typing that would no longer fit its 309 pixels; pressing OK or Cancel takes the focus from both controls; dragging in the list past its edges scrolls a row every 100 ms; in the list, Left and Right act as Up and Down and a letter selects the next name with that letter, wrapping; a double click in the edit box selects the word.
+- **A double click that goes** (on the list) also swallows the release that follows, so it cannot close the companion popups that open over the new page. What the original does with that release is not established.
+- **Touch** (a remake addition, open to review by Alex): a tap on a row selects it, a tap on the selected row goes; swiping the list scrolls it by whole rows, keeping the selection; dragging the scroll bar's thumb works as with the mouse. The desktop mouse behaviour is unchanged.
 
 ## 2. A–Z list pages [V][C]
 The pages the A–Z machine leads to (e.g. heap offset 8124, the "A" list: "Airliner Wing", "Airplane", "Aerosol" …) are ordinary base pages on template 7 in `\AZAZ\`. Each has one Bitmap with the names baked into the picture and 30 to 47 Hotspots: one per name (ChangePage to the article) and the letter tabs along the bottom (ChangePage to the other list pages). The program draws no text on them, and their static rendering matches the Wine captures exactly (rendering.md §9) [V].
@@ -190,7 +193,7 @@ Provenance: ScrollBar press `1030:a95c`, release `1030:a75e`, move `1030:a7f0`, 
 
 ### 3.4 For the remake
 - Implement the model above once and drive it from pointer events; a touch drag on the thumb behaves as a mouse drag.
-- Ending a drag when the pointer leaves the 16-pixel bar is unkind to fingers. Keeping the drag while the pointer is captured, for touch at least, is a small deliberate difference to agree with Alex; dragging the picture itself to scroll would be an addition.
+- **Touch** (a remake addition, open to review by Alex): a finger dragging the thumb keeps the drag when it leaves the 16-pixel bar (the mouse still ends it there), and swiping the scrolled picture scrolls it with the finger (a swipe clicks nothing; a tap still stops media). The desktop mouse behaviour is unchanged.
 
 ## 4. The Options popup
 
@@ -254,11 +257,12 @@ The standard Windows "Print Setup" common dialog, owned by the program's window.
 - **Copy**: build the captioned image (page picture + 40-row white band + the copyright line centred in black) and copy it as PNG at native size or an integer upscale (PLAN Phase 8). The caption font: an approximation of the System font for wide pictures and a small sans-serif for narrow ones; exact glyphs are not required.
 - **Print**: print the same captioned image with nearest-neighbour scaling, top-left aligned, at the original's proportion of the page width (a full-screen picture spans the printable width; a popup spans *W*/640 of it). Whether to keep the top-left placement or centre the picture on the sheet is a presentation choice for Alex. The browser's own print dialog replaces the original's direct printing, and its page setup replaces Printer Setup (option 3 can open the print dialog or be dropped).
 - The legal line is part of the original's output and should be kept.
+- **Phase 6**: the engine builds the captioned picture (`buildCopyImage`, `Engine.copyImage`) as an indexed image in the screen palette and hands it to the presenter with the ProductOption event; the copyright line is read from string 5000 of `TWTW.EXE` at runtime. The caption is drawn with the engine's own font (section 1.12) in bold when it fits, regular when only that fits, else squeezed to the picture's width by dropping columns, an approximation of both of the original's fonts. The web app offers the picture as a PNG download until Phase 8 copies and prints it.
 
 ## 5. Help pages [C][V]
 - The navigation bar's Help button (button 7) closes the Help page (popup 117408) if it is open, then opens it. 117408 is `HELP0M00`, 560×410, origin (−54, 17), so its window is at page (39, 21) and its picture at (39, 29)–(599, 439) under Windows 3.1: wide, but inside the screen [C][V].
 - There are 78 Help popups, all 560×410. Only 117408 is ever opened; every other Help page is reached by a popup-to-popup ChangePage from a Help page [V]. Such a change keeps the window where it is when the size does not change (rendering.md §7.7), so **every Help page appears at 117408's position** (or wherever the user dragged the window). The 77 Help pages whose own origins would place them past page column 638 never show there, and the original does not clamp popups because it does not need to [C]. A remake should place pages exactly by these rules; clipping at the stage edge then never applies to Help.
-- **Second Help window** [C]: the Help button looks for an open window showing page 117408 itself. After the user has moved to another Help page the window shows that page instead, so the button does not close it, and the OpenPage of 117408 creates a second Help window on top of the first, at the same place. Closing the new one reveals the old one. Whether the remake reproduces this or reuses the open Help window is a choice to agree with Alex.
+- **Second Help window** [C]: the Help button looks for an open window showing page 117408 itself. After the user has moved to another Help page the window shows that page instead, so the button does not close it, and the OpenPage of 117408 creates a second Help window on top of the first, at the same place. Closing the new one reveals the old one. **The remake reproduces this** (a remake decision for fidelity, open to review by Alex).
 - Six Help pages scroll (section 3). Otherwise the Help pages are ordinary popups: pictures, Hotspots with ChangePage between Help pages, and a WordBox.
 
 ## 6. Transitions [V][C]
@@ -270,7 +274,7 @@ The standard Windows "Print Setup" common dialog, owned by the program's window.
 - The main window's title, "The Way Things Work", is set when the window is created and never changed; Windows draws it in the frame. No page has a name in the database, and the program never sets a caption per page.
 - Popups have no Windows caption: their 8-pixel strip is drawn by the program and holds no text (rendering.md §7.3).
 - Apart from the Index controls (section 1.3) and the copy/print caption (section 4.4), the program draws no text of its own: article text, the A–Z lists and the Options labels are in the pictures. (The AZDial's 26 strings are file names, not text to draw.)
-- For the remake: a fixed `document.title` of "The Way Things Work" matches the original; a per-page title would be an addition.
+- For the remake: a fixed `document.title` of "The Way Things Work" matches the original (the web app sets it); a per-page title would be an addition.
 
 ## 8. Coverage of types (Phase 6 "done" criterion)
 Every type the database defines, where it is specified, and what the remake does with it.
@@ -285,24 +289,27 @@ Every type the database defines, where it is specified, and what the remake does
 | Object | 602 AnimationControl | rendering.md §5, playback.md §7 | implement; progress indicator geometry while playing is still [H] |
 | Object | 603 Hotspot | behaviour.md §3 | implement; pressed-highlight styles 1–4 **dropped** (style 0 everywhere) |
 | Object | 604 AZHotspot | behaviour.md §7 | implement |
-| Object | 605 WordBox | behaviour.md §1.3 | implement as an invisible object with an empty rectangle (catches panel pixel (0,0) only), or drop: no visible effect |
+| Object | 605 WordBox | behaviour.md §1.3 | implemented as an invisible object with an empty rectangle (catches panel pixel (0,0) only) |
 | Object | 606 NavHotspot | behaviour.md §6 | implement |
 | Object | 607 AnimHotspot | playback.md §6 | implement |
 | Object | 608 CancelButton | section 4.2 | implement |
 | Object | 609 ScrollBitmap, 610 ScrollBar | section 3, rendering.md §5 | implement |
-| Object | 611 AZAnimHotspot | page-database.md | **dropped**: none on the disc |
+| Object | 611 AZAnimHotspot | page-database.md | none on the disc; handled as an AnimHotspot |
 | Action | 1 OpenPage, 3 ChangePage, 12 ClosePage | behaviour.md §4 | implement; ChangePage transition **dropped** (section 6) |
 | Action | 2 SendMessage | behaviour.md §4.5 | implement (only (181, 59)) |
 | Action | 4 PlayWave, 7 PlayPics | playback.md §4 | implement |
-| Action | 5 StopWave, 6 SeekWave, 8 PlayPicsNoLoad, 9 PlayNonQueuedPics, 10 StopPics, 13 SeekPics | playback.md §4 | none on the disc; implement cheaply from the spec or **drop** |
-| Action | 11 ProductOption | section 4 | implement (Phase 8 for 1–3) |
+| Action | 5 StopWave, 6 SeekWave, 8 PlayPicsNoLoad, 9 PlayNonQueuedPics, 10 StopPics, 13 SeekPics | playback.md §4 | none on the disc; implemented from the spec (SeekWave does nothing) |
+| Action | 11 ProductOption | section 4 | implement: the copy and print picture (Phase 6); clipboard, printing and print setup in Phase 8 |
 | Event | 1 open, 4 click, 6 finished | behaviour.md §2 | implement |
-| Event | 2 app activated, 3 close, 5 before open | behaviour.md §2 | none on the disc; firing them costs nothing |
+| Event | 5 before open | behaviour.md §2 | none on the disc; fired for popups (rendering.md §8) |
+| Event | 2 app activated, 3 close | behaviour.md §2 | **dropped**: no handler on the disc, and when the original fires them is not established |
 | Template | flag A, caption, shadow | rendering.md §7.1 | implement |
 | Template | flags B and C, centring flags, no-focus flag, list 1, list 2 | rendering.md §7.1 | **dropped**: unused or no effect on the disc |
 | Program | `WM_COMMAND` 0x66–0x69, "Go to page", developer and logging switches, CD check, zoom sounds | program.md, behaviour.md §4.2 | **dropped**: unreachable or not applicable |
 
 Product-level, template-level and page-level handlers are all empty on the disc (behaviour.md §2.1).
+
+The engine keeps this table as data (`packages/engine/src/special/coverage.ts`). A corpus test checks that every page, panel, object and action type and every event the disc uses is implemented, that no ChangePage has a transition, and that the dropped template fields are unused by the templates pages use; a unit test checks that the unused types (a child page, events 2, 3 and unknown codes, the unused media actions, AZAnimHotspot) are handled without error.
 
 ## 9. What to check against the original
 None of these screens has a reference capture yet. Under Wine (`tools/refcapture`, `docs/reference-environments.md`), once the reference environment is free; the step numbers are object positions in the panel (`page:panel:object`; the navigation bar is panel 849, objects 7, 8 and 9 are Index, Options and Help):

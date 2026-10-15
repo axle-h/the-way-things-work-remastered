@@ -155,5 +155,8 @@ A cursor resource is the hotspot (x u16, y u16) followed by a monochrome DIB wit
 
 Each group has one image. The directory gives 308 bytes for cursor 3 (4 + 40 + 8 + 2 × 128) but 320 for cursor 2, whose last 12 bytes are zero. The database's cursor names select them ignoring case: `Hand` is group 107, `Arrow` and `Normal` are group 157 (`1010:c70e`; behaviour.md §8) [C].
 
+### Strings [V]
+A string table resource (type 6) holds 16 strings: block *b* holds string ids 16 × (*b* − 1) to 16 × (*b* − 1) + 15, so string *id* is in block (*id* >> 4) + 1 at position *id* & 15. Each string is a length byte followed by that many Windows-1252 bytes; an absent string has length 0 (public NE format). `TWTW.EXE` has blocks 1–6, 126 and 313. Strings the remake reads: 2001 "The Way Things Work" (the title and the print job's name) and 5000 "(C) 1994 Dorling Kindersley and Houghton Mifflin Company" (the copy and print caption, special-screens.md §4.4), the only string in its block apart from 15 empty ones.
+
 ## Installation [C]
 `SETUP.EXE` runs a Microsoft Setup Toolkit script (`DKSTP/TWTW.MST`, plain text). It copies the program to the hard disk (default `C:\TWTW`), installs the ADPCM codec if needed, may switch the display driver to a 256-colour one, creates Program Manager items, and writes `TWTW.INI` with `Data=` set to the disc's root.

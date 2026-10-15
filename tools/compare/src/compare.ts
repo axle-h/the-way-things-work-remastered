@@ -1,6 +1,6 @@
 /**
- * Comparing one reference capture: replay its action path in the engine (Wine presentation),
- * render, and diff against the capture with the expected differences masked.
+ * Comparing one reference capture: replay its action path in the engine (Wine presentation) as
+ * real clicks, render, and diff against the capture with the expected differences masked.
  */
 import { readFileSync } from 'node:fs';
 import type { PageRef, Rect } from '@twtw/formats';
@@ -9,6 +9,9 @@ import {
   CLIENT_WIDTH,
   createFramebuffer,
   Engine,
+  headlessMedia,
+  stalledAutostartMedia,
+  VirtualClock,
   type DataSource,
   type IndexedImage,
   type PageInstance,
@@ -25,19 +28,17 @@ import {
 } from './diff.ts';
 import { animationCatalog, deriveMasks, WINE_VISIBLE, type AnimationCatalog } from './masks.ts';
 import type { Reference } from './references.ts';
-import {
-  applyEffect,
-  engineState,
-  formatClickStep,
-  nextState,
-  sameEffect,
-  sameState,
-  showState,
-  stepEffect,
-  type ScreenState,
-} from './step-dispatch.ts';
+import { engineState, replayStep, sameState, showState, type ScreenState } from './state.ts';
 
 export type Status = 'exact' | 'explained' | 'unexplained' | 'error';
+
+/**
+ * How the replay treats sound and animation: `stall` (the default) mimics Wine, where animations
+ * that start with their page stall and all others end at once; `settle` plays everything on a
+ * virtual clock and renders the true settled state, frames included (playback.md), which Wine's
+ * captures do not show.
+ */
+export type MediaMode = 'stall' | 'settle';
 
 /** One capture's comparison, as written to results.json. */
 export interface CaptureResult {
@@ -83,16 +84,26 @@ export interface CaptureComparison {
 
 export class Comparator {
   readonly engine: Engine;
+  readonly mode: MediaMode;
   readonly #animations: AnimationCatalog;
 
-  private constructor(engine: Engine, animations: AnimationCatalog) {
+  private constructor(engine: Engine, animations: AnimationCatalog, mode: MediaMode) {
     this.engine = engine;
     this.#animations = animations;
+    this.mode = mode;
   }
 
-  static async open(source: DataSource): Promise<Comparator> {
-    const engine = await Engine.load(source, { presentation: 'wine', startPage: null });
-    return new Comparator(engine, animationCatalog(source));
+  static async open(source: DataSource, mode: MediaMode = 'stall'): Promise<Comparator> {
+    // Stall: autostart animations never end, as under Wine; the auto-advance candidates below
+    // decide whether the capture still shows the page or the one it moves on to.
+    const clock = new VirtualClock();
+    const engine = await Engine.load(source, {
+      presentation: 'wine',
+      startPage: null,
+      clock,
+      media: mode === 'stall' ? stalledAutostartMedia() : headlessMedia(source, clock),
+    });
+    return new Comparator(engine, animationCatalog(source), mode);
   }
 
   get palette(): Uint8Array {
@@ -133,38 +144,32 @@ export class Comparator {
       }
       if (!sidecar.settle.settled) notes.push('the reference never settled');
 
-      // Replay the action path.
-      const db = this.engine.content.database;
-      let state: ScreenState = { base: sidecar.actionPath.start, popups: [] };
-      await showState(this.engine, state);
+      // Replay the action path: a direct start, then a press and release at each recorded point.
+      await showState(this.engine, { base: sidecar.actionPath.start, popups: [] });
+      let beforeLast: ScreenState | null = null;
+      let lastKind: string | null = null;
       for (const step of sidecar.actionPath.steps) {
-        const effect = stepEffect(db, state, step);
-        if (!sameEffect(effect, step.effect)) {
-          throw new Error(
-            `step ${formatClickStep(step)}: the database gives ${JSON.stringify(effect)}, ` +
-              `refcapture recorded ${JSON.stringify(step.effect)}`,
-          );
-        }
-        await applyEffect(this.engine, effect);
-        state = nextState(db, state, effect);
+        beforeLast = engineState(this.engine);
+        const replayed = await replayStep(this.engine, step);
+        lastKind = replayed.kind;
+        if (replayed.note !== null) notes.push(replayed.note);
       }
-      const shown = engineState(this.engine);
-      if (shown === null || !sameState(shown, state)) {
-        throw new Error(`the engine shows ${JSON.stringify(shown)}, expected ${JSON.stringify(state)}`);
-      }
-      if (!sameState(state, sidecar.expectedState)) {
-        notes.push(
-          `replayed state ${JSON.stringify(state)} differs from refcapture's prediction ` +
-            `${JSON.stringify(sidecar.expectedState)}`,
+      const state = engineState(this.engine);
+      if (state === null || !sameState(state, sidecar.expectedState)) {
+        throw new Error(
+          `the clicks lead to ${JSON.stringify(state)}, refcapture expected ${JSON.stringify(sidecar.expectedState)}`,
         );
       }
       const changing =
         (sidecar.settle.cycleFrames ?? 1) > 1 && sidecar.settle.changingRect != null
           ? sidecar.settle.changingRect
           : null;
+      if (this.mode === 'settle')
+        return await this.#settled(image, area, referenceSize, painted, base, state, changing, notes);
 
       // The page as replayed; when it should have moved on by itself, Wine's stall explains it.
       const stalls = sidecar.settledDiffersFromRequested;
+      let navStall: Candidate | null = null;
       const candidates: Candidate[] = [
         await this.#candidate(image, area, referenceSize, {
           stalled: stalls,
@@ -188,13 +193,37 @@ export class Comparator {
           }),
         );
       }
+      if (
+        lastKind === 'navHotspot' &&
+        beforeLast !== null &&
+        changing !== null &&
+        changing.right <= NAV_BAR_WIDTH &&
+        !sameState(beforeLast, state)
+      ) {
+        // Or the state before a last navigation click whose button animation Wine stalled (it was
+        // still cycling when captured): the page change it waits for never came.
+        await showState(this.engine, beforeLast);
+        navStall = await this.#candidate(image, area, referenceSize, {
+          stalled: false,
+          arrivedFrom: [],
+          changing,
+          painted,
+        });
+        candidates.push(navStall);
+      }
       const best = candidates.reduce((a, b) =>
         b.diff.unexplained < a.diff.unexplained ||
         (b.diff.unexplained === a.diff.unexplained && b.diff.differing < a.diff.differing)
           ? b
           : a,
       );
-      const autoAdvance = !stalls ? 'none' : best === candidates[0] ? 'stalled' : 'arrived';
+      const autoAdvance =
+        !stalls || best === navStall ? 'none' : best === candidates[0] ? 'stalled' : 'arrived';
+      if (best === navStall) {
+        notes.push(
+          "Wine stalled the last navigation button's animation: the reference shows the page before that click",
+        );
+      }
       const { diff, masks } = best;
       const status: Status =
         diff.differing === 0 ? 'exact' : diff.unexplained === 0 ? 'explained' : 'unexplained';
@@ -245,6 +274,61 @@ export class Comparator {
     }
   }
 
+  /**
+   * Settle mode: play everything out from the replayed state and compare the true settled state;
+   * frames of the animations passed through on the way count as leftovers.
+   */
+  async #settled(
+    image: RgbImage,
+    area: { width: number; height: number },
+    referenceSize: { width: number; height: number },
+    painted: { width: number; height: number },
+    base: Pick<CaptureResult, 'id' | 'page' | 'name' | 'kind' | 'directory' | 'start' | 'steps'>,
+    replayed: ScreenState,
+    changing: Rect | null,
+    notes: string[],
+  ): Promise<CaptureComparison> {
+    const passed: PageInstance[] = [];
+    if (!(await this.engine.settle(10 * 60 * 1000))) notes.push('playback did not settle within 10 minutes');
+    const settled = engineState(this.engine);
+    if (settled !== null && settled.base !== replayed.base) {
+      notes.push(`settled at page ${settled.base}`);
+      passed.push(await this.engine.loadPage(replayed.base));
+    }
+    const { diff, masks, ours, state } = await this.#candidate(image, area, referenceSize, {
+      stalled: false,
+      arrivedFrom: passed,
+      changing,
+      painted,
+    });
+    const status: Status =
+      diff.differing === 0 ? 'exact' : diff.unexplained === 0 ? 'explained' : 'unexplained';
+    return {
+      result: {
+        ...base,
+        rendered: state,
+        autoAdvance: settled !== null && settled.base !== replayed.base ? 'arrived' : 'none',
+        referenceSize,
+        area,
+        status,
+        differing: diff.differing,
+        differingPercent: (100 * diff.differing) / (area.width * area.height),
+        unexplained: diff.unexplained,
+        byReason: diff.byReason,
+        unexplainedBoxes: boundingBoxes(diff.classes, area.width, area.height, PixelClass.unexplained),
+        differingBoxes: boundingBoxes(
+          diff.classes.map((cls) => (cls === PixelClass.same ? 0 : 1)),
+          area.width,
+          area.height,
+          1,
+        ),
+        masks,
+        notes,
+      },
+      images: { reference: image, ours, diff: diffPicture(image, diff, masks) },
+    };
+  }
+
   /** Renders what the engine shows now and diffs it against the reference. */
   async #candidate(
     reference: RgbImage,
@@ -275,6 +359,9 @@ export class Comparator {
     return { state: engineState(this.engine), ours, masks, diff };
   }
 }
+
+/** The navigation bar's width: a stalled button animation cycles inside it. */
+const NAV_BAR_WIDTH = 94;
 
 interface Candidate {
   readonly state: ScreenState | null;

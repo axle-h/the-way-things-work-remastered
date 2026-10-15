@@ -1,11 +1,15 @@
-import { DIAL_POSITIONS, Engine } from '@twtw/engine';
+import { DIAL_POSITIONS, Engine, stalledAutostartMedia } from '@twtw/engine';
 import { describe, expect, it } from 'vitest';
 import type { Mask } from './diff.ts';
 import { animationCatalog, deriveMasks, type MaskInput } from './masks.ts';
-import { showState, type ScreenState } from './step-dispatch.ts';
+import { showState, type ScreenState } from './state.ts';
 import { CONTENT, disc, FILL, INTRO_FRAMES, MOVIE_FRAME, ref } from './test-disc.ts';
 
-const engine = await Engine.load(disc.source, { presentation: 'wine', startPage: null });
+const engine = await Engine.load(disc.source, {
+  presentation: 'wine',
+  startPage: null,
+  media: stalledAutostartMedia(),
+});
 const animations = animationCatalog(disc.source);
 
 /** The masks for a state, against a 638×459 reference. */
@@ -50,6 +54,16 @@ describe('deriveMasks', () => {
     const caption = masks.find((mask) => mask.reason === 'wineCaptionColour');
     expect(caption?.rect).toEqual(rect(window.x, window.y, window.x + 60, window.y + 8));
     expect(caption?.referenceColours).toEqual([0x9e9e9e, 0x3296fa]);
+  });
+
+  it("masks only the Index page's edit box and list, where our font differs", async () => {
+    const masks = await masksFor({ base: ref('other'), popups: [ref('index')] });
+    const window = engine.windows[0]!;
+    const top = window.y + window.caption;
+    expect(masks.filter((mask) => mask.reason === 'indexText').map((mask) => mask.rect)).toEqual([
+      rect(window.x + 27, top + 88, window.x + 27 + 309, top + 88 + 16),
+      rect(window.x + 27, top + 138, window.x + 27 + 293, top + 138 + 169),
+    ]);
   });
 
   it('masks the A–Z lamp', async () => {

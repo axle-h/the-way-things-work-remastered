@@ -255,6 +255,7 @@ When another application becomes active, the program stops all media and redraws
 - Hit-test with inclusive rectangles, last object first. Keep the release test of §1.5 step 6 (pressed object, y + 1) if exactness matters; it only changes the outcome on the bottom row of a hotspot.
 - Defer page actions to after the handler, in order.
 - Keep "a click while something plays only stops it" (§3, §6.1): children will notice when a button needs two presses.
+- Choices made (Phase 4): mouse double clicks are treated as in the original (the second click is ignored, Windows 3.1's 500 ms and 4×4 pixels); taps never form a double click. **Deliberate difference:** Back with fewer than two history entries does nothing and leaves the program usable, instead of keeping it busy (§6.3).
 
 ## 12. What to check against the original
 In Wine (fine for everything not timed by animations):

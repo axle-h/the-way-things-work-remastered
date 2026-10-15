@@ -305,9 +305,9 @@ describe('Engine', () => {
 
     it('decodes each picture file once', async () => {
       const before = source.reads.filter((path) => path === 'ART/POP.DIB').length;
-      await engine.openPopup(ref('popup'));
-      await engine.openPopup(ref('popupSameSize'));
-      await engine.openPopup(ref('popup'));
+      await engine.openPage(ref('popup'));
+      await engine.openPage(ref('popupSameSize'));
+      await engine.openPage(ref('popup'));
       expect(source.reads.filter((path) => path === 'ART/POP.DIB').length - before).toBeLessThanOrEqual(1);
     });
   });
@@ -408,7 +408,7 @@ describe('Engine', () => {
     const wy = 204;
 
     beforeEach(async () => {
-      await engine.openPopup(ref('popup'));
+      await engine.openPage(ref('popup'));
       engine.render(fb);
     });
     const win = (x: number, y: number): number => pixel(fb, wx + x, wy + y);
@@ -455,25 +455,28 @@ describe('Engine', () => {
     });
 
     it('shows inactive captions on all but the top window', async () => {
-      await engine.openPopup(ref('popupWide'));
+      await engine.openPage(ref('popupWide'));
       engine.render(fb);
       expect(win(13, 1)).toBe(WHITE);
     });
 
     it('clips windows that reach past the stage', async () => {
-      await engine.openPopup(ref('popupWide'));
+      await engine.openPage(ref('popupWide'));
       engine.render(fb);
       // Window at (619, 404), 54×30: the picture starts at (619, 412).
       expect(pixel(fb, 639, 412)).toBe(90);
       expect(pixel(fb, 639, 427)).toBe(90);
     });
 
-    it('closes the top window, or a given page', async () => {
-      await engine.openPopup(ref('popupBig'));
-      expect(engine.closePopup(ref('popup'))).toBe(true);
-      expect(engine.windows.map((w) => w.page.ref)).toEqual([ref('popupBig')]);
-      expect(engine.closePopup()).toBe(true);
-      expect(engine.closePopup()).toBe(false);
+    it('closes the window showing a page, with the windows it owns', async () => {
+      await engine.openPage(ref('popupBig'));
+      expect(engine.windows.map((w) => w.owner?.page.ref ?? null)).toEqual([null, ref('popup')]);
+      expect(await engine.closePage(ref('popupBig'))).toBe(true);
+      expect(engine.windows.map((w) => w.page.ref)).toEqual([ref('popup')]);
+      await engine.openPage(ref('popupBig'));
+      expect(await engine.closePage(ref('popup'))).toBe(true);
+      expect(engine.windows).toEqual([]);
+      expect(await engine.closePage(ref('popup'))).toBe(false);
       engine.render(fb);
       expect(win(0, 8)).toBe(RED);
     });
@@ -489,21 +492,23 @@ describe('Engine', () => {
       expect(engine.windows.map((w) => [w.page.ref, w.x, w.y])).toEqual([[ref('popupBig'), 26, -8]]);
     });
 
-    it('ChangePage of a base page keeps the windows open', async () => {
+    it('ChangePage of a base page closes every window', async () => {
+      await engine.openPage(ref('popupBig'));
       await engine.changePage(ref('widgets'));
       expect(engine.basePage?.ref).toBe(ref('widgets'));
-      expect(engine.windows).toHaveLength(1);
+      expect(engine.windows).toHaveLength(0);
     });
 
     it('refuses to open a base page as a popup', async () => {
-      await expect(engine.openPopup(ref('base'))).rejects.toThrow(/base page/);
+      expect(await engine.openPage(ref('widgets'))).toBe(false);
+      expect(engine.basePage?.ref).toBe(ref('base'));
     });
   });
 
   describe('popup windows (Wine)', () => {
     it('places windows (−2, −3) from Windows 3.1 and stipples the shadow over white', async () => {
       const wine = await Engine.load(source, { presentation: 'wine' });
-      await wine.openPopup(ref('popup'));
+      await wine.openPage(ref('popup'));
       wine.render(fb);
       const [wx, wy] = [117, 201];
       expect(wine.windows.map((w) => [w.x, w.y])).toEqual([[wx, wy]]);

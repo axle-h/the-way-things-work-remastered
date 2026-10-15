@@ -13,7 +13,8 @@ export class HttpDataSource implements DataSource {
   private constructor(baseUrl: string, index: FileIndex, fetchFn: typeof fetch) {
     this.baseUrl = baseUrl;
     this.index = index;
-    this.#fetch = fetchFn;
+    // Called as a plain function: browsers reject `fetch` called on another object ("Illegal invocation").
+    this.#fetch = (input, init) => fetchFn(input, init);
   }
 
   /** `baseUrl` ends with `/`. `fetchFn` is replaceable for tests. */
