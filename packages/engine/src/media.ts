@@ -1,7 +1,8 @@
 /**
  * The engine's hooks into sound and animation playback. Input and actions decide *when* media
- * starts or stops (behaviour.md §3, §6, §7); playing it is Phase 5 (playback.md). Until then
- * {@link SilentMedia} stands in: nothing ever plays.
+ * starts or stops (behaviour.md §3, §6, §7); a {@link Media} plays it (playback.md).
+ * `PlaybackMedia` (media/playback.ts) plays the disc's files through an audio sink;
+ * {@link SilentMedia} plays nothing, for tools that only need pages as they open.
  */
 import type { Action, AnimationControlObject, PlayWaveAction } from '@twtw/formats';
 import type { PageInstance, PanelInstance, PlacedObject } from './page.ts';
@@ -79,15 +80,30 @@ export interface Media {
   /** A sound or animation action from a handler, run at once (behaviour.md §2.3). */
   runAction(action: MediaAction, target: MediaTarget): void;
   /**
-   * Plays an object's animation. `ended` is called once its last frame has shown (not when it is
-   * stopped), and may be called before this returns. A click on an AnimHotspot whose animation is
-   * already playing does nothing (behaviour.md §3).
+   * Plays an object's animation. `ended` is called once it has played to its end, and may be
+   * called before this returns; `stopped` when it is stopped before that (stop all media). A
+   * request for an animation that is already playing does nothing (behaviour.md §3).
    */
-  playAnimation(request: AnimationRequest, ended: () => void): void;
+  playAnimation(request: AnimationRequest, ended: () => void, stopped?: () => void): void;
   /** An AnimationControl's buttons and messages. */
   control(request: ControlRequest): void;
+  /** A page has been shown: its players can open (playback.md §1). */
+  pageOpened?(page: PageInstance): void;
   /** A page left the screen: its objects' players can go (playback.md §1). */
   pageClosed(page: PageInstance): void;
+  /**
+   * Brings playback up to the audio clock: draws the frames that are due into their panels'
+   * layers, ends what has ended (calling `ended` and queued starts). Returns whether anything on
+   * screen changed. The engine calls it from `Engine.update`.
+   */
+  update?(): boolean;
+  /**
+   * Seconds on the audio clock until playback next needs an {@link update} (a frame or an end),
+   * or `null` when nothing is scheduled. For running headless playback on a virtual clock.
+   */
+  nextEventDelay?(): number | null;
+  /** Resolves once the files being opened have loaded; `null` when nothing is loading. */
+  loading?(): Promise<void> | null;
 }
 
 export interface SilentMediaOptions {
@@ -119,6 +135,14 @@ export class SilentMedia implements Media {
 
   playAnimation(request: AnimationRequest, ended: () => void): void {
     if (this.#ends(request)) ended();
+  }
+
+  update(): boolean {
+    return false;
+  }
+
+  nextEventDelay(): number | null {
+    return null;
   }
 
   control(): void {}

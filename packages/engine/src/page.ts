@@ -17,7 +17,7 @@ import {
   type Template,
 } from '@twtw/formats';
 import { paletteIndexOf } from './colours.ts';
-import { IndexedCanvas } from './render/canvas.ts';
+import { PanelLayer } from './render/layer.ts';
 import { ProgramBitmap, type PictureStore } from './pictures.ts';
 import type { IndexedImage } from './screen.ts';
 
@@ -30,7 +30,34 @@ export type ObjectLook =
   /** The rectangle's size of the picture, from its top row (scroll position 0). */
   | { readonly kind: 'scrollBitmap'; readonly picture: IndexedImage | null }
   /** The eight part bitmaps of a scroll bar, in data order (rendering.md §5). */
-  | { readonly kind: 'scrollBar'; readonly parts: readonly (IndexedImage | null)[] };
+  | { readonly kind: 'scrollBar'; readonly parts: readonly (IndexedImage | null)[] }
+  /** An AnimationControl's strip, which changes while its movie plays (playback.md §7). */
+  | { readonly kind: 'control'; readonly strip: ControlStrip };
+
+/** Where an AnimationControl's movie is, as its strip shows it (playback.md §7). */
+export type ControlState =
+  /** At its start: rewind greyed, play. */
+  | 'rest'
+  /** Playing: rewind, pause, progress. */
+  | 'playing'
+  /** Stopped part-way by its pause button: rewind, play, progress. */
+  | 'paused'
+  /** At its end, not rewound: rewind, play greyed, progress full. */
+  | 'ended';
+
+/** An AnimationControl strip: its parts and what it shows. The media changes `state` and `progress`. */
+export interface ControlStrip {
+  state: ControlState;
+  /** Columns of the progress indicator shown, 0 … {@link CONTROL_PROGRESS.width}. */
+  progress: number;
+  readonly background: IndexedImage | null;
+  readonly rewind: IndexedImage | null;
+  readonly rewindActive: IndexedImage | null;
+  readonly play: IndexedImage | null;
+  readonly pause: IndexedImage | null;
+  readonly playEnded: IndexedImage | null;
+  readonly indicator: IndexedImage | null;
+}
 
 export interface PlacedObject {
   readonly object: DisplayObject;
@@ -88,6 +115,8 @@ export interface PanelInstance {
   readonly objects: readonly PlacedObject[];
   /** Present on the A–Z dial panel. */
   readonly dial: DialState | null;
+  /** Animation frames drawn over the panel since it was painted (playback.md §3). */
+  readonly layer: PanelLayer;
 }
 
 export interface PageInstance {
@@ -109,9 +138,16 @@ export interface PageLoadContext {
   readonly palette: Uint8Array;
 }
 
-/** AnimationControl strip size and part offsets (rendering.md §5). */
-const CONTROL_WIDTH = 74;
-const CONTROL_HEIGHT = 22;
+/** AnimationControl strip size (rendering.md §5). */
+export const CONTROL_WIDTH = 74;
+export const CONTROL_HEIGHT = 22;
+/** Part offsets from the strip's top-left (rendering.md §5, playback.md §7). */
+export const CONTROL_PARTS = {
+  rewind: { x: 3, y: 3, width: 15, height: 16 },
+  play: { x: 20, y: 3, width: 16, height: 16 },
+} as const;
+/** The progress indicator's slot in the strip: bitmap 159 from its left edge, this wide at most. */
+export const CONTROL_PROGRESS = { x: 39, y: 7, width: 30, height: 9 } as const;
 /** Where the A–Z dial panel draws the current letter's picture and the lamp (rendering.md §6). */
 export const DIAL_POSITIONS = {
   letter: { x: 161, y: 101 },
@@ -153,6 +189,8 @@ export async function instantiatePage(context: PageLoadContext, ref: PageRef): P
       const objects = panel === null ? [] : await Promise.all(panel.objects.map((o) => loader.place(o)));
       const dial = panel?.kind === 'azDial' ? await loader.dial(panel) : null;
       const extent = objectExtent(objects);
+      const width = slot !== null && slot.width !== 0 ? slot.width : extent.width;
+      const height = slot !== null && slot.height !== 0 ? slot.height : extent.height;
       return {
         id: panel?.id ?? slot?.panelId ?? 0,
         type: panel?.kind ?? slot?.panelType ?? 'display',
@@ -161,11 +199,12 @@ export async function instantiatePage(context: PageLoadContext, ref: PageRef): P
         panel,
         x: slot?.x ?? 0,
         y: slot?.y ?? 0,
-        width: slot !== null && slot.width !== 0 ? slot.width : extent.width,
-        height: slot !== null && slot.height !== 0 ? slot.height : extent.height,
+        width,
+        height,
         colour: slot === null ? 0 : paletteIndexOf(context.palette, slot.colour),
         objects,
         dial,
+        layer: new PanelLayer(width, height),
       };
     }),
   );
@@ -229,7 +268,7 @@ class ObjectLoader {
           rect === null
             ? null
             : { ...rect, right: rect.left + CONTROL_WIDTH, bottom: rect.top + CONTROL_HEIGHT };
-        return { object, rect: placed, look: { kind: 'picture', picture: this.#controlStrip() } };
+        return { object, rect: placed, look: { kind: 'control', strip: this.#controlStrip() } };
       }
       case 'scrollBitmap':
         return { object, rect, look: { kind: 'scrollBitmap', picture: await this.#picture(object.file) } };
@@ -263,26 +302,19 @@ class ObjectLoader {
     };
   }
 
-  /**
-   * The AnimationControl's 74×22 strip at rest (rendering.md §5): the background with the rewind
-   * and play buttons. The pressed and pause variants (117–120) and the progress indicator are
-   * for playback (Phase 5).
-   */
-  #controlStrip(): IndexedImage | null {
-    const background = this.#resource(ProgramBitmap.animationControl);
-    if (background === null) return null;
-    const strip = {
-      width: CONTROL_WIDTH,
-      height: CONTROL_HEIGHT,
-      pixels: new Uint8Array(CONTROL_WIDTH * CONTROL_HEIGHT),
+  /** The AnimationControl's 74×22 strip (rendering.md §5), at rest. */
+  #controlStrip(): ControlStrip {
+    return {
+      state: 'rest',
+      progress: 0,
+      background: this.#resource(ProgramBitmap.animationControl),
+      rewind: this.#resource(ProgramBitmap.animationRewind),
+      rewindActive: this.#resource(ProgramBitmap.animationRewindActive),
+      play: this.#resource(ProgramBitmap.animationPlay),
+      pause: this.#resource(ProgramBitmap.animationPause),
+      playEnded: this.#resource(ProgramBitmap.animationPlayEnded),
+      indicator: this.#resource(ProgramBitmap.animationProgress),
     };
-    const canvas = new IndexedCanvas(strip);
-    canvas.draw(background, 0, 0);
-    const rewind = this.#resource(ProgramBitmap.animationRewind);
-    if (rewind !== null) canvas.draw(rewind, 3, 3);
-    const play = this.#resource(ProgramBitmap.animationPlay);
-    if (play !== null) canvas.draw(play, 20, 3);
-    return strip;
   }
 
   /** A picture by database name (`.DIB` in the page directory, a disc path, or `@` resource). */

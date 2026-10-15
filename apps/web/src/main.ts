@@ -1,14 +1,20 @@
 import {
+  ClockAudioSink,
   createFramebuffer,
   Engine,
+  loadDiscContent,
+  PlaybackMedia,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
+  type AudioSink,
   type Clock,
   type CursorName,
   type EngineEvent,
   type PageRef,
 } from '@twtw/engine';
+import { WebAudioSink } from './audio.ts';
 import { buildCursorStyles } from './cursors.ts';
+import { keepAudioRunning, startAudio, waitForTap } from './gate.ts';
 import { parseDebugHash } from './debug-hash.ts';
 import { HttpDataSource } from './http-source.ts';
 import { attachInput } from './input.ts';
@@ -17,7 +23,8 @@ import { clientToFramebuffer, nativeLayout } from './stage.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#stage');
 const status = document.querySelector<HTMLElement>('#status');
-if (!canvas || !status) throw new Error('index.html is missing #stage or #status');
+const gate = document.querySelector<HTMLButtonElement>('#gate');
+if (!canvas || !status || !gate) throw new Error('index.html is missing #stage, #status or #gate');
 
 canvas.width = SCREEN_WIDTH;
 canvas.height = SCREEN_HEIGHT;
@@ -84,21 +91,50 @@ function onEvent(event: EngineEvent): void {
   }
 }
 
+/**
+ * Loads the database, waits behind the "tap to start" gate (sound needs a gesture), then starts
+ * the engine with Web Audio playback: frames are timed by the audio clock.
+ */
 async function start(): Promise<void> {
   const source = await HttpDataSource.open('/data/');
+  const content = await loadDiscContent(source);
+  const context = await waitForTap(gate!, startAudio);
+  let sink: AudioSink;
+  if (context === null) {
+    console.warn('no Web Audio: animations play without sound');
+    sink = new ClockAudioSink(systemClock);
+  } else {
+    keepAudioRunning(window, context);
+    sink = new WebAudioSink(context);
+  }
+  // In development, a log of voice starts and frames on the audio clock, to check sync.
+  const playbackLog: Record<string, unknown>[] = [];
+  const logging = import.meta.env.DEV;
+  const media = new PlaybackMedia({
+    source,
+    sink: logging ? loggingSink(sink, playbackLog) : sink,
+    onError: (error, path) => console.warn(`cannot play ${path}:`, error),
+    ...(logging
+      ? { onFrame: (path: string, frame: number) => playbackLog.push({ path, frame, at: sink.now() }) }
+      : {}),
+  });
   const { presentation } = parseDebugHash(location.hash);
-  const engine = await Engine.load(source, {
-    startPage: null,
+  const engine = new Engine(source, content, {
     presentation: presentation ?? 'win31',
     clock: systemClock,
+    media,
   });
   engine.on(onEvent);
+  if (import.meta.env.DEV) {
+    // For poking at playback from the browser console during development.
+    Object.assign(window, { twtw: { engine, media, sink, playbackLog } });
+  }
   const cursors: Record<CursorName, string> = buildCursorStyles(engine.content, layout.scale);
   attachInput(canvas!, engine, (clientX, clientY) =>
     clientToFramebuffer(layout, canvas!.getBoundingClientRect(), clientX, clientY),
   );
 
-  // Re-render whenever the engine reports a change (input, page loads, zoom, lamp).
+  // Re-render whenever the engine reports a change (input, page loads, animation frames, zoom, lamp).
   let cursor: CursorName | null = null;
   const frame = (): void => {
     if (engine.update()) {
@@ -116,6 +152,18 @@ async function start(): Promise<void> {
   });
   await showHashState(engine);
   requestAnimationFrame(frame);
+}
+
+/** A sink that records each start (dev builds): when, from where, and when its sound is heard. */
+function loggingSink(sink: AudioSink, log: Record<string, unknown>[]): AudioSink {
+  return {
+    now: () => sink.now(),
+    start: (clip, offset) => {
+      const voice = sink.start(clip, offset);
+      log.push({ start: clip.length, offset, at: sink.now(), startTime: voice.startTime });
+      return voice;
+    },
+  };
 }
 
 function report(error: unknown): void {

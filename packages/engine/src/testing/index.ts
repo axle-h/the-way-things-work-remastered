@@ -8,10 +8,15 @@ import {
   buildDib,
   buildNeExecutable,
   buildPageDatabase,
+  buildPics,
+  buildRiffWave,
   ByteWriter,
+  fmtChunk,
+  packPicsRuns,
   type PageDatabaseSpec,
 } from '@twtw/formats/testing';
 import type { Clock } from '../clock.ts';
+import { ClockAudioSink, type AudioClip, type AudioVoice } from '../media/audio.ts';
 import { DATABASE_PATH, PROGRAM_PATH } from '../content.ts';
 import { MemoryDataSource } from '../data/memory-source.ts';
 import type { AnimationRequest, ControlRequest, Media, MediaAction, MediaTarget } from '../media.ts';
@@ -66,6 +71,9 @@ export const SYNTHETIC_BITMAP_FILL = {
   [ProgramBitmap.animationControl]: 101,
   [ProgramBitmap.animationRewind]: 115,
   [ProgramBitmap.animationPlay]: 116,
+  [ProgramBitmap.animationRewindActive]: 117,
+  [ProgramBitmap.animationPause]: 119,
+  [ProgramBitmap.animationPlayEnded]: 120,
   [ProgramBitmap.animationProgress]: 159,
   [ProgramBitmap.cancel]: 170,
   [ProgramBitmap.cancelPressed]: 171,
@@ -79,6 +87,9 @@ const PROGRAM_BITMAP_SIZES: readonly (readonly [number, number, number])[] = [
   [ProgramBitmap.animationControl, 74, 22],
   [ProgramBitmap.animationRewind, 15, 16],
   [ProgramBitmap.animationPlay, 16, 16],
+  [ProgramBitmap.animationRewindActive, 15, 16],
+  [ProgramBitmap.animationPause, 16, 16],
+  [ProgramBitmap.animationPlayEnded, 16, 16],
   [ProgramBitmap.animationProgress, 100, 30],
   [ProgramBitmap.cancel, 62, 22],
   [ProgramBitmap.cancelPressed, 62, 22],
@@ -287,5 +298,106 @@ export class RecordingMedia implements Media {
 
   clear(): void {
     this.calls.length = 0;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sounds and animations
+
+/** One chunk of a {@link syntheticPics}: `sound` bytes of PCM, and optionally a solid image. */
+export interface SyntheticChunk {
+  readonly sound: number;
+  /** A rectangle (panel coordinates) filled with `fill`. */
+  readonly image?: {
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+    readonly height: number;
+    readonly fill: number;
+  };
+}
+
+/**
+ * A PICS animation (pics.md) with A × B pre-roll chunks (sound only) and the given frame chunks.
+ * The sound runs at `rate` bytes (8-bit samples) per second; each chunk's samples are its index,
+ * so tests can tell chunks apart in the soundtrack.
+ */
+export function syntheticPics(spec: {
+  readonly preRoll: readonly [number, number];
+  readonly preRollSound: number;
+  readonly frames: readonly SyntheticChunk[];
+  readonly rate?: number;
+}): Uint8Array {
+  const [a, b] = spec.preRoll;
+  const chunks = [
+    ...Array.from({ length: a * b }, (): SyntheticChunk => ({ sound: spec.preRollSound })),
+    ...spec.frames,
+  ].map((chunk, index) => {
+    const sound = new Array<number>(chunk.sound).fill(index & 0xff);
+    const image = chunk.image;
+    if (image === undefined) return { sound };
+    const stride = (image.width + 1) & ~1;
+    const pixels = new Array<number>(stride * image.height).fill(image.fill);
+    return {
+      sound,
+      rect: {
+        left: image.left,
+        top: image.top,
+        right: image.left + image.width,
+        bottom: image.top + image.height,
+      },
+      unpackedSize: pixels.length,
+      packed: packPicsRuns(pixels),
+    };
+  });
+  return buildPics({
+    preRollFactorA: a,
+    preRollFactorB: b,
+    chunks,
+    ...(spec.rate === undefined ? {} : { samplesPerSecond: spec.rate }),
+  });
+}
+
+/** An 8-bit mono PCM WAV of `samples` samples at `rate` per second. */
+export function syntheticWave(samples: number, rate = 1000): Uint8Array {
+  return buildRiffWave([
+    {
+      id: 'fmt ',
+      data: fmtChunk({
+        formatTag: 1,
+        channels: 1,
+        samplesPerSecond: rate,
+        averageBytesPerSecond: rate,
+        blockAlign: 1,
+        bitsPerSample: 8,
+      }),
+    },
+    { id: 'data', data: new Array<number>(samples).fill(128) },
+  ]);
+}
+
+/** A start recorded by {@link RecordingAudioSink}. */
+export interface RecordedVoice {
+  readonly clip: AudioClip;
+  readonly offset: number;
+  /** Clock time (s) of the start. */
+  readonly at: number;
+  stopped: number | null;
+}
+
+/** A silent sink on a clock that records what it was asked to play and to stop. */
+export class RecordingAudioSink extends ClockAudioSink {
+  readonly voices: RecordedVoice[] = [];
+
+  override start(clip: AudioClip, offset: number): AudioVoice {
+    const voice = super.start(clip, offset);
+    const record: RecordedVoice = { clip, offset, at: this.now(), stopped: null };
+    this.voices.push(record);
+    return {
+      startTime: voice.startTime,
+      stop: () => {
+        record.stopped ??= this.now();
+      },
+    };
   }
 }

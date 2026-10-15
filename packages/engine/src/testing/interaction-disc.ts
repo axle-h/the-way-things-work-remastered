@@ -13,7 +13,17 @@ import {
   type Rect,
 } from '@twtw/formats';
 import type { HeapEntrySpec, PageContent, RefOf } from '@twtw/formats/testing';
-import { bitmapObject, panelSlot, rect, rgb, syntheticDib, syntheticDisc, template } from './index.ts';
+import {
+  bitmapObject,
+  panelSlot,
+  rect,
+  rgb,
+  syntheticDib,
+  syntheticDisc,
+  syntheticPics,
+  syntheticWave,
+  template,
+} from './index.ts';
 
 /** Where the content panel sits, as on the disc. */
 export const CONTENT = { x: 94, y: 4 } as const;
@@ -358,6 +368,28 @@ const product = (ref: RefOf): Product => ({
 /** Pixel values of the synthetic pictures. */
 export const PICTURE = { back: 20, nav: 11, frame: 12, dial: 50, popup: 40 } as const;
 
+/**
+ * Sounds and animations (for the media tests; the interaction tests do not play them). Sound runs
+ * at 1,000 bytes per second. Each animation has one pre-roll chunk and three frame chunks of
+ * 0.2 s, so it lasts 0.8 s; its frames are 20×10 rectangles of `MEDIA_FRAME_FILL[name]` + 0, 1, 2
+ * at panel (100,200), (110,200), (120,200).
+ */
+export const MEDIA_RATE = 1000;
+export const MEDIA_DURATION_MS = 800;
+export const MEDIA_FRAME_FILL = { anim: 60, auto: 70, movie: 80, nav: 90, letter: 140 } as const;
+
+function animation(fill: number): Uint8Array {
+  return syntheticPics({
+    preRoll: [1, 1],
+    preRollSound: 200,
+    rate: MEDIA_RATE,
+    frames: [0, 1, 2].map((k) => ({
+      sound: 200,
+      image: { left: 100 + 10 * k, top: 200, width: 20, height: 10, fill: fill + k },
+    })),
+  });
+}
+
 const files: Record<string, Uint8Array> = {
   'ART/BACK.DIB': syntheticDib(540, 450, PICTURE.back),
   'NAV/NAV.DIB': syntheticDib(94, 459, PICTURE.nav),
@@ -372,6 +404,20 @@ const files: Record<string, Uint8Array> = {
       syntheticDib(5, 5, 200 + i),
     ]),
   ),
+  'ART/ANIM.ANI': animation(MEDIA_FRAME_FILL.anim),
+  'ART/AUTO.ANI': animation(MEDIA_FRAME_FILL.auto),
+  'ART/MOVIE.ANI': animation(MEDIA_FRAME_FILL.movie),
+  ...Object.fromEntries(
+    Array.from({ length: 9 }, (_, k) => [`NAV/NAVB${k}.ANI`, animation(MEDIA_FRAME_FILL.nav)]),
+  ),
+  ...Object.fromEntries(
+    Array.from({ length: 26 }, (_, i) => [
+      `AZ/AZL${String.fromCharCode(65 + i)}.ANI`,
+      animation(MEDIA_FRAME_FILL.letter),
+    ]),
+  ),
+  'ART/SND.WAV': syntheticWave(300, MEDIA_RATE),
+  'AZAZ/DIAL.WAV': syntheticWave(100, MEDIA_RATE),
 };
 
 export const interactionDisc = syntheticDisc({ product, heap }, files);

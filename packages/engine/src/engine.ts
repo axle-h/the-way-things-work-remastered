@@ -20,7 +20,7 @@ import {
   type PageRef,
   type Point,
 } from '@twtw/formats';
-import { VirtualClock, type Clock } from './clock.ts';
+import { canAdvance, VirtualClock, type Clock } from './clock.ts';
 import { loadDiscContent, type DiscContent } from './content.ts';
 import type { DataSource } from './data/data-source.ts';
 import { History } from './history.ts';
@@ -34,9 +34,15 @@ import {
   type MediaAction,
   type MediaTarget,
 } from './media.ts';
-import { instantiatePage, type PageInstance, type PanelInstance, type PlacedObject } from './page.ts';
+import {
+  DIAL_POSITIONS,
+  instantiatePage,
+  type PageInstance,
+  type PanelInstance,
+  type PlacedObject,
+} from './page.ts';
 import { PictureStore } from './pictures.ts';
-import { IndexedCanvas, type Box } from './render/canvas.ts';
+import { IndexedCanvas, intersect, type Box } from './render/canvas.ts';
 import { invertFocusRect } from './render/focus-rect.ts';
 import { paintPage } from './render/paint.ts';
 import {
@@ -190,6 +196,10 @@ export class Engine {
   #task: Promise<void> | null = null;
   /** Cancels the wait for a navigation button's animation (when the app is deactivated). */
   #cancelNavWait: (() => void) | null = null;
+  /** The running task waits for an animation to end (a navigation button). */
+  #waitingForMedia = false;
+  /** Told when the running task starts waiting for an animation. */
+  #onMediaWait: (() => void) | null = null;
 
   #press: Press | null = null;
   #ignoreRelease = false;
@@ -315,6 +325,8 @@ export class Engine {
     if (instance.page.pageType !== 'base')
       throw new Error(`page ${ref}: a ${instance.page.pageType} page cannot start`);
     await this.#perform(async () => {
+      this.media.stopAll();
+      this.media.pageOpened?.(instance);
       for (const popup of this.#popups) this.media.pageClosed(popup.page);
       if (this.#base !== null) this.media.pageClosed(this.#base);
       this.#popups = [];
@@ -456,10 +468,12 @@ export class Engine {
   // Time and drawing
 
   /**
-   * Advances time-based state (the A–Z lamp, the zoom outlines) to the clock's time. Returns
-   * whether the picture changed since the last call, i.e. whether to render again.
+   * Advances time-based state (sound and animation playback, the A–Z lamp, the zoom outlines) to
+   * the clocks' time. Returns whether the picture changed since the last call, i.e. whether to
+   * render again.
    */
   update(): boolean {
+    if (this.media.update?.() === true) this.#dirty = true;
     const now = this.clock.now();
     for (const panel of this.#base?.panels ?? []) {
       const dial = panel.dial;
@@ -468,6 +482,9 @@ export class Engine {
       const lampOn = ticks % 2 === 1;
       if (dial.lampOn !== lampOn) {
         dial.lampOn = lampOn;
+        // The lamp draws over whatever an animation left there.
+        const lamp = (lampOn ? dial.lampOnPicture : dial.lampOffPicture) ?? dial.lampOnPicture;
+        clearPicture(panel, DIAL_POSITIONS.lamp, lamp);
         this.#dirty = true;
       }
       const lampOverGo = dial.goPressed && ticks > this.#dialGoTick;
@@ -487,6 +504,50 @@ export class Engine {
     const dirty = this.#dirty;
     this.#dirty = false;
     return dirty;
+  }
+
+  /**
+   * Runs time on until everything has played out and no input or page action is pending: the
+   * true settled state, e.g. the title animation moving on to the still title (playback.md §6). Needs a
+   * clock that can be moved on (`VirtualClock`, the default, or a test's `ManualClock`) and media
+   * timed by it (`PlaybackMedia` on a `ClockAudioSink` of the same clock). Returns `false` if
+   * `limitMs` of clock time pass first. Pages that never settle (the A–Z lamp) are fine: only
+   * playback and pending work count.
+   */
+  async settle(limitMs = 3_600_000): Promise<boolean> {
+    const clock = this.clock;
+    if (!canAdvance(clock)) throw new Error('settle needs a clock that can be advanced');
+    const until = clock.now() + limitMs;
+    for (;;) {
+      this.update();
+      const loading = this.media.loading?.() ?? null;
+      if (loading !== null) {
+        await loading;
+        continue;
+      }
+      const task = this.#task;
+      if (task !== null && (clock instanceof VirtualClock || !this.#waitingForMedia)) {
+        // A virtual clock is moved on by the task itself while it waits for an animation.
+        await Promise.race([task, new Promise<void>((resolve) => (this.#onMediaWait = resolve))]);
+        this.#onMediaWait = null;
+        if (!(clock instanceof VirtualClock) || !this.#waitingForMedia) continue;
+        await task;
+        continue;
+      }
+      const delay = this.media.nextEventDelay?.() ?? null;
+      if (delay === null) {
+        if (this.#task === null) return true;
+        await this.#task;
+        continue;
+      }
+      const step = stepMs(delay);
+      if (clock.now() + step > until) {
+        clock.advance(Math.max(0, until - clock.now()));
+        this.update();
+        return false;
+      }
+      clock.advance(step);
+    }
   }
 
   /**
@@ -708,8 +769,10 @@ export class Engine {
     if (press?.kind === 'drag') {
       const { window, from } = press;
       if (x !== from.x || y !== from.y) {
+        const before = this.#windowBox(window);
         window.x += x - from.x;
         window.y += y - from.y;
+        this.#expose(before, this.#below(window));
       }
       this.#dirty = true;
       return;
@@ -911,10 +974,16 @@ export class Engine {
         path: this.#animationPath(target.page, object.file),
         target,
       };
-      const ended = await new Promise<boolean>((resolve) => {
-        this.#cancelNavWait = () => resolve(false);
-        this.media.playAnimation(request, () => resolve(true));
-      });
+      const ended = await this.#waitForAnimation(
+        new Promise<boolean>((resolve) => {
+          this.#cancelNavWait = () => resolve(false);
+          this.media.playAnimation(
+            request,
+            () => resolve(true),
+            () => resolve(false),
+          );
+        }),
+      );
       this.#cancelNavWait = null;
       if (!ended) return;
     }
@@ -973,6 +1042,8 @@ export class Engine {
       if (code <= 25) dial.letter = code;
       else if (code === 26) dial.letter = (dial.letter + 25) % 26;
       else dial.letter = (dial.letter + 1) % 26;
+      // The new letter's picture is drawn over whatever an animation left there.
+      clearPicture(target.panel, DIAL_POSITIONS.letter, dial.letters[dial.letter] ?? null);
       this.media.runAction(DIAL_SOUND, target);
       this.#dirty = true;
       return;
@@ -986,6 +1057,7 @@ export class Engine {
     dial.going = true;
     dial.goPressed = true;
     dial.lampOverGo = false;
+    clearPicture(target.panel, DIAL_POSITIONS.go, dial.goPicture);
     this.#dialGoTick = Math.floor((this.clock.now() - this.#dialSince) / 1000);
     this.#dirty = true;
     const finish = (): void => {
@@ -1001,6 +1073,10 @@ export class Engine {
     this.media.playAnimation(
       { reason: 'dial', name, path: this.#animationPath(target.page, name), target },
       finish,
+      () => {
+        // Stopped (all media stopped meanwhile): the dial takes presses again.
+        dial.going = false;
+      },
     );
   }
 
@@ -1027,19 +1103,26 @@ export class Engine {
     }
     const instance = await this.loadPage(ref);
     await this.#closeWindows(this.#ownedBy(window));
+    if (window !== null && !this.#popups.includes(window)) return false;
+    // The new page's players open before the old page's go, so shared ones stay (playback.md §1).
+    this.media.pageOpened?.(instance);
     if (window === null) {
-      if (this.#base !== null) this.media.pageClosed(this.#base);
+      if (this.#base !== null) {
+        keepSharedPanels(this.#base, instance);
+        this.media.pageClosed(this.#base);
+      }
       this.#base = instance;
       this.#dialSince = this.clock.now();
     } else {
-      if (!this.#popups.includes(window)) return false;
       this.media.pageClosed(window.page);
       const resized = window.page.width !== instance.width || window.page.height !== instance.height;
+      const before = this.#windowBox(window);
       window.page = instance;
       if (resized) {
         const position = windowPosition(this.content.database, instance, this.presentation, false);
         window.x = position.x;
         window.y = position.y;
+        this.#expose(before, this.#below(window));
       }
       // The zoom flag belonged to the page opened in the window.
       window.zoomFrom = null;
@@ -1074,6 +1157,7 @@ export class Engine {
       popup.zoomFrom = this.#zoomStart(this.#lastPress);
       await this.#playZoom(ZOOM_OPEN_PERCENTAGES, popup.zoomFrom, this.#screenRect(popup));
     }
+    this.media.pageOpened?.(instance);
     this.#popups.push(popup);
     this.#active = popup;
     if (popup.focusable) this.#setFocus(popup);
@@ -1102,7 +1186,9 @@ export class Engine {
     await this.#closeWindows(this.#ownedBy(popup));
     const at = this.#popups.indexOf(popup);
     if (at < 0) return false;
+    const below = this.#below(popup);
     this.#popups.splice(at, 1);
+    this.#expose(this.#windowBox(popup), below);
     const press = this.#press;
     if (press !== null && (press.kind === 'object' ? press.target.window : press.window) === popup) {
       this.#press = null;
@@ -1187,6 +1273,77 @@ export class Engine {
   // -------------------------------------------------------------------------------------------
   // Helpers
 
+  /**
+   * Waits for an animation a task depends on (a navigation button). On a {@link VirtualClock} the
+   * engine moves time on itself until it ends, as the clock does for other waits.
+   */
+  async #waitForAnimation(ended: Promise<boolean>): Promise<boolean> {
+    this.#waitingForMedia = true;
+    this.#onMediaWait?.();
+    try {
+      const clock = this.clock;
+      if (!(clock instanceof VirtualClock)) return await ended;
+      let done = false;
+      void ended.then(() => (done = true));
+      while (!done) {
+        const loading = this.media.loading?.() ?? null;
+        if (loading !== null) await loading;
+        this.update();
+        await Promise.resolve();
+        if (done) break;
+        const delay = this.media.nextEventDelay?.() ?? null;
+        if (delay === null) {
+          if (loading === null) break;
+          continue;
+        }
+        clock.advance(stepMs(delay));
+      }
+      return await ended;
+    } finally {
+      this.#waitingForMedia = false;
+    }
+  }
+
+  /** A window's rectangle in page coordinates, caption and shadow included. */
+  #windowBox(window: Popup): Box {
+    const { width, height } = windowSize(window);
+    return { left: window.x, top: window.y, right: window.x + width, bottom: window.y + height };
+  }
+
+  /** The base page (`null`) and the popups below a popup in the stacking order. */
+  #below(popup: Popup): (Popup | null)[] {
+    const at = this.#popups.indexOf(popup);
+    return [null, ...this.#popups.slice(0, Math.max(0, at))];
+  }
+
+  /**
+   * A rectangle of the screen (page coordinates) was uncovered: Windows has the windows there
+   * repaint it from their panels at rest (rendering.md §3), so animation frames drawn there are
+   * gone (playback.md §3).
+   */
+  #expose(rect: Box, windows: readonly (Popup | null)[]): void {
+    for (const window of windows) {
+      const page = window === null ? this.#base : window.page;
+      if (page === null) continue;
+      const originX = window?.x ?? 0;
+      const originY = window === null ? 0 : window.y + window.caption;
+      for (const panel of page.panels) {
+        if (panel.layer.empty) continue;
+        const left = originX + panel.x;
+        const top = originY + panel.y;
+        const box = intersect(rect, { left, top, right: left + panel.width, bottom: top + panel.height });
+        if (box.left >= box.right || box.top >= box.bottom) continue;
+        panel.layer.clear({
+          left: box.left - left,
+          top: box.top - top,
+          right: box.right - left,
+          bottom: box.bottom - top,
+        });
+        this.#dirty = true;
+      }
+    }
+  }
+
   /** The topmost window at a page point: a popup, `null` for the main window, `undefined` for none. */
   #windowAt(x: number, y: number): Popup | null | undefined {
     for (let i = this.#popups.length - 1; i >= 0; i--) {
@@ -1233,6 +1390,13 @@ export class Engine {
     const rest = this.#popups.filter((candidate) => !descends(candidate));
     const order = [...rest, ...family];
     if (order.some((candidate, i) => candidate !== this.#popups[i])) {
+      // Parts of the raised windows that others covered are repainted (rendering.md §3).
+      for (const raised of family) {
+        const at = this.#popups.indexOf(raised);
+        for (const other of this.#popups.slice(at + 1)) {
+          if (!descends(other)) this.#expose(this.#windowBox(other), [raised]);
+        }
+      }
       this.#popups = order;
       this.#dirty = true;
     }
@@ -1268,6 +1432,51 @@ export class Engine {
       .view(panel.x, panel.y, panel.width, panel.height)
       .draw(object.look.pressed, object.rect.left, object.rect.top);
   }
+}
+
+/** A clock step (ms) that reaches an event `delay` seconds ahead, rounded up so it is due. */
+function stepMs(delay: number): number {
+  return Math.ceil(Math.max(0, delay) * 1e6) / 1e3;
+}
+
+/** A picture drawn at a panel position covers what animations drew there. */
+function clearPicture(
+  panel: PanelInstance,
+  at: { readonly x: number; readonly y: number },
+  picture: { readonly width: number; readonly height: number } | null,
+): void {
+  if (picture === null) return;
+  panel.layer.clear({ left: at.x, top: at.y, right: at.x + picture.width, bottom: at.y + picture.height });
+}
+
+/**
+ * A ChangePage keeps a shared panel whose PanelRef is the same in the old and new templates, and
+ * does not repaint it (rendering.md §2): what animations drew there stays.
+ */
+function keepSharedPanels(old: PageInstance, next: PageInstance): void {
+  for (const panel of next.panels) {
+    if (panel.source !== 'shared' || panel.slot === null) continue;
+    const same = old.panels.find(
+      (candidate) =>
+        candidate.source === 'shared' && candidate.slot !== null && samePanelRef(candidate.slot, panel.slot!),
+    );
+    if (same !== undefined) panel.layer.adopt(same.layer);
+  }
+}
+
+function samePanelRef(a: NonNullable<PanelInstance['slot']>, b: NonNullable<PanelInstance['slot']>): boolean {
+  return (
+    a.panelType === b.panelType &&
+    a.panelId === b.panelId &&
+    a.sharedPanel === b.sharedPanel &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.width === b.width &&
+    a.height === b.height &&
+    a.colour.red === b.colour.red &&
+    a.colour.green === b.colour.green &&
+    a.colour.blue === b.colour.blue
+  );
 }
 
 /** An object's flags; the scroll objects have none. */

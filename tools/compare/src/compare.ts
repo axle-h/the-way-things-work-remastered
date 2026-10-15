@@ -9,7 +9,9 @@ import {
   CLIENT_WIDTH,
   createFramebuffer,
   Engine,
+  headlessMedia,
   stalledAutostartMedia,
+  VirtualClock,
   type DataSource,
   type IndexedImage,
   type PageInstance,
@@ -29,6 +31,14 @@ import type { Reference } from './references.ts';
 import { engineState, replayStep, sameState, showState, type ScreenState } from './state.ts';
 
 export type Status = 'exact' | 'explained' | 'unexplained' | 'error';
+
+/**
+ * How the replay treats sound and animation: `stall` (the default) mimics Wine, where animations
+ * that start with their page stall and all others end at once; `settle` plays everything on a
+ * virtual clock and renders the true settled state, frames included (playback.md), which Wine's
+ * captures do not show.
+ */
+export type MediaMode = 'stall' | 'settle';
 
 /** One capture's comparison, as written to results.json. */
 export interface CaptureResult {
@@ -74,22 +84,26 @@ export interface CaptureComparison {
 
 export class Comparator {
   readonly engine: Engine;
+  readonly mode: MediaMode;
   readonly #animations: AnimationCatalog;
 
-  private constructor(engine: Engine, animations: AnimationCatalog) {
+  private constructor(engine: Engine, animations: AnimationCatalog, mode: MediaMode) {
     this.engine = engine;
     this.#animations = animations;
+    this.mode = mode;
   }
 
-  static async open(source: DataSource): Promise<Comparator> {
-    // Autostart animations never end, as they stall under Wine: the auto-advance candidates
-    // below decide whether the capture still shows the page or the one it moves on to.
+  static async open(source: DataSource, mode: MediaMode = 'stall'): Promise<Comparator> {
+    // Stall: autostart animations never end, as under Wine; the auto-advance candidates below
+    // decide whether the capture still shows the page or the one it moves on to.
+    const clock = new VirtualClock();
     const engine = await Engine.load(source, {
       presentation: 'wine',
       startPage: null,
-      media: stalledAutostartMedia(),
+      clock,
+      media: mode === 'stall' ? stalledAutostartMedia() : headlessMedia(source, clock),
     });
-    return new Comparator(engine, animationCatalog(source));
+    return new Comparator(engine, animationCatalog(source), mode);
   }
 
   get palette(): Uint8Array {
@@ -144,6 +158,8 @@ export class Comparator {
         (sidecar.settle.cycleFrames ?? 1) > 1 && sidecar.settle.changingRect != null
           ? sidecar.settle.changingRect
           : null;
+      if (this.mode === 'settle')
+        return await this.#settled(image, area, referenceSize, base, state, changing, notes);
 
       // The page as replayed; when it should have moved on by itself, Wine's stall explains it.
       const stalls = sidecar.settledDiffersFromRequested;
@@ -239,6 +255,59 @@ export class Comparator {
         },
       };
     }
+  }
+
+  /**
+   * Settle mode: play everything out from the replayed state and compare the true settled state;
+   * frames of the animations passed through on the way count as leftovers.
+   */
+  async #settled(
+    image: RgbImage,
+    area: { width: number; height: number },
+    referenceSize: { width: number; height: number },
+    base: Pick<CaptureResult, 'id' | 'page' | 'name' | 'kind' | 'directory' | 'start' | 'steps'>,
+    replayed: ScreenState,
+    changing: Rect | null,
+    notes: string[],
+  ): Promise<CaptureComparison> {
+    const passed: PageInstance[] = [];
+    if (!(await this.engine.settle(10 * 60 * 1000))) notes.push('playback did not settle within 10 minutes');
+    const settled = engineState(this.engine);
+    if (settled !== null && settled.base !== replayed.base) {
+      notes.push(`settled at page ${settled.base}`);
+      passed.push(await this.engine.loadPage(replayed.base));
+    }
+    const { diff, masks, ours, state } = await this.#candidate(image, area, referenceSize, {
+      stalled: false,
+      arrivedFrom: passed,
+      changing,
+    });
+    const status: Status =
+      diff.differing === 0 ? 'exact' : diff.unexplained === 0 ? 'explained' : 'unexplained';
+    return {
+      result: {
+        ...base,
+        rendered: state,
+        autoAdvance: settled !== null && settled.base !== replayed.base ? 'arrived' : 'none',
+        referenceSize,
+        area,
+        status,
+        differing: diff.differing,
+        differingPercent: (100 * diff.differing) / (area.width * area.height),
+        unexplained: diff.unexplained,
+        byReason: diff.byReason,
+        unexplainedBoxes: boundingBoxes(diff.classes, area.width, area.height, PixelClass.unexplained),
+        differingBoxes: boundingBoxes(
+          diff.classes.map((cls) => (cls === PixelClass.same ? 0 : 1)),
+          area.width,
+          area.height,
+          1,
+        ),
+        masks,
+        notes,
+      },
+      images: { reference: image, ours, diff: diffPicture(image, diff, masks) },
+    };
   }
 
   /** Renders what the engine shows now and diffs it against the reference. */

@@ -84,6 +84,24 @@ export class IndexedCanvas {
   }
 
   /**
+   * Copies the pixels of `source` (rows `width` bytes apart, in local coordinates from (0,0))
+   * within the local rectangle `box` whose `mask` byte is non-zero; the others stay as they are.
+   */
+  drawMasked(source: Uint8Array, mask: Uint8Array, width: number, box: Box): void {
+    const target = this.#toImage(box.left, box.top, box.right - box.left, box.bottom - box.top);
+    if (target === null) return;
+    const { pixels, width: stride } = this.image;
+    for (let row = target.top; row < target.bottom; row++) {
+      const localY = row - this.originY;
+      let from = localY * width + (target.left - this.originX);
+      let to = row * stride + target.left;
+      for (let column = target.left; column < target.right; column++, from++, to++) {
+        if (mask[from] !== 0) pixels[to] = source[from]!;
+      }
+    }
+  }
+
+  /**
    * Replaces each pixel of the local rectangle by `map(index, imageX, imageY)`. The coordinates
    * passed to `map` are image (framebuffer) coordinates, for patterns aligned to the screen.
    */

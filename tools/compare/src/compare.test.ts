@@ -284,6 +284,26 @@ describe('Comparator', () => {
     });
   });
 
+  it('in settle mode, plays everything out and compares the settled state', async () => {
+    const state = { base: ref('movie'), popups: [] };
+    const image = await rendering(state);
+    const reference = capture(image, {
+      page: ref('intro'),
+      expectedState: { base: ref('intro'), popups: [] },
+      autoAdvance: [ref('movie')],
+      expectedSettledPage: ref('movie'),
+      settledDiffersFromRequested: true,
+    });
+    const settling = await Comparator.open(disc.source, 'settle');
+    const { result } = await settling.compare(reference);
+    // The intro moved on to the movie page, whose movie played to its end: its frame is drawn,
+    // which the stand-in capture (the page at rest) does not show.
+    expect(result).toMatchObject({ autoAdvance: 'arrived', rendered: state });
+    expect(result.notes).toContain(`settled at page ${ref('movie')}`);
+    expect(settling.engine.media.isPlaying()).toBe(false);
+    expect(result.differing).toBeGreaterThan(0);
+  });
+
   it('adds up results by status and reason', async () => {
     const state = { base: ref('article'), popups: [] };
     const exact = (

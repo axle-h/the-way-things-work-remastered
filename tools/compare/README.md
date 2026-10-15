@@ -11,6 +11,7 @@ pnpm compare 41* 'path-*'        # a page glob, a capture-name glob
 pnpm compare 1188/path-1538_*    # a glob over <page>/<name>
 pnpm compare --images differing  # write pictures only for captures that differ (all, differing, none)
 pnpm compare --out DIR --quiet
+pnpm compare --media settle      # play everything out (true settled states; see below)
 ```
 
 `$TWTW_CD` (the disc, default `vendor/cd`), `$TWTW_REF` (the captures, default `vendor/ref`) and `$TWTW_COMPARE_OUT` (default `vendor/compare`) override the locations. A filtered run updates its captures in `results.json` and keeps the others. The command exits with 1 if a capture has an unexplained difference or could not be replayed.
@@ -40,6 +41,8 @@ Animation masks are per pixel: a difference counts as explained only where the r
 **Auto-advance.** For a capture whose page should move on by itself (`settledDiffersFromRequested`), two renderings are tried: the page itself with its animation stalled, and the page it moves on to with what the animation leaves behind. The one with fewer unexplained pixels wins, and the result says `stalled` or `arrived`.
 
 **Navigation stall.** When the last step is a navigation button and the capture was still cycling inside the nav bar (`changingRect`), Wine may have stalled the button's press-in animation, so the page change it waits for never came. The state before that click is tried too, and the result notes it when it wins.
+
+**Media modes.** By default (`--media stall`) the replay mimics Wine, where the references were captured: autostart animations stall and everything else ends at once, without drawing frames. `--media settle` plays all sound and animation on a virtual clock (`docs/formats/playback.md`) and compares the true settled state, frames included: autostart pages move on (the title arrives at the still title), movies play to their last frame. Wine's captures do not show that, so expect differences there: currently 2 captures are unexplained in this mode, the stalled title animation and a path whose last navigation button Wine stalled.
 
 **Status** per capture: `exact` (no differing pixel), `explained` (all explained), `unexplained`, or `error` (the replay failed).
 

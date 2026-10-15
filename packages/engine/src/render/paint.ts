@@ -2,7 +2,12 @@
  * Painting panels and their objects at rest (rendering.md §3, §5, §6).
  */
 import {
+  CONTROL_HEIGHT,
+  CONTROL_PARTS,
+  CONTROL_PROGRESS,
+  CONTROL_WIDTH,
   DIAL_POSITIONS,
+  type ControlStrip,
   type DialState,
   type PageInstance,
   type PanelInstance,
@@ -20,12 +25,14 @@ export function paintPage(canvas: IndexedCanvas, page: PageInstance): void {
 
 /**
  * Paints one panel into a canvas whose origin is the panel's top-left and which clips to the
- * panel: fill with the panel colour, then draw the objects in data order (later ones on top).
+ * panel: fill with the panel colour, then draw the objects in data order (later ones on top),
+ * then what animations have drawn over it since (playback.md §3).
  */
 export function paintPanel(canvas: IndexedCanvas, panel: PanelInstance): void {
   canvas.fill(0, 0, panel.width, panel.height, panel.colour);
   for (const placed of panel.objects) drawObject(canvas, placed);
   if (panel.dial !== null) drawDial(canvas, panel.dial);
+  panel.layer.paint(canvas);
 }
 
 function drawObject(canvas: IndexedCanvas, { rect, look }: PlacedObject): void {
@@ -44,6 +51,35 @@ function drawObject(canvas: IndexedCanvas, { rect, look }: PlacedObject): void {
     case 'scrollBar':
       drawScrollBar(canvas, rect, look.parts, 0);
       break;
+    case 'control':
+      drawControlStrip(canvas.view(rect.left, rect.top, CONTROL_WIDTH, CONTROL_HEIGHT), look.strip);
+      break;
+  }
+}
+
+/**
+ * An AnimationControl strip, composed in a 74×22 view (rendering.md §5, playback.md §7): the
+ * background, the rewind button (greyed at rest), the play button (pause while playing, greyed at
+ * the end), and the progress indicator, bitmap 159 from its left edge, as wide as the progress.
+ */
+export function drawControlStrip(canvas: IndexedCanvas, strip: ControlStrip): void {
+  if (strip.background !== null) canvas.draw(strip.background, 0, 0);
+  const rewind = strip.state === 'rest' ? strip.rewind : strip.rewindActive;
+  if (rewind !== null) canvas.draw(rewind, CONTROL_PARTS.rewind.x, CONTROL_PARTS.rewind.y);
+  const play =
+    strip.state === 'playing' ? strip.pause : strip.state === 'ended' ? strip.playEnded : strip.play;
+  if (play !== null) canvas.draw(play, CONTROL_PARTS.play.x, CONTROL_PARTS.play.y);
+  const progress = Math.min(strip.progress, CONTROL_PROGRESS.width);
+  if (strip.indicator !== null && progress > 0) {
+    canvas.draw(
+      strip.indicator,
+      CONTROL_PROGRESS.x,
+      CONTROL_PROGRESS.y,
+      0,
+      0,
+      progress,
+      CONTROL_PROGRESS.height,
+    );
   }
 }
 
