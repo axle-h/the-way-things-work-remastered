@@ -2,7 +2,7 @@
 // ratios, the stage picks the expected integer scale, its backing store matches the device
 // pixels, a phone held upright gets the "turn sideways" screen, and a tap on a hotspot reaches
 // the page it leads to. They need the extracted disc and skip without it.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { hasDisc } from './disc.ts';
@@ -293,5 +293,215 @@ test.describe('the Index on a touch screen', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('body')).toHaveAttribute('data-pages', String(AIRPLANE));
     await expect(field).not.toBeFocused();
+  });
+});
+
+// Copy and Print (docs/PLAN.md Phase 8; special-screens.md §4). The Options button is navigation
+// bar object 8, (5,417)–(90,435) in the bar at page (0,0); the Options popup's Copy, Print and
+// Printer setup hotspots are at these points of its picture (special-screens.md §4.1).
+const OPTIONS_BUTTON = { x: 47, y: 426 };
+const OPTIONS_POPUP = 278816;
+const OPTION_POINTS = { copy: { x: 120, y: 73 }, print: { x: 119, y: 103 }, setup: { x: 118, y: 133 } };
+/** An Airplane popup, 287×330 (copied as 287×370). */
+const AIRPLANE_POPUP = 2534;
+
+/** Clicks a page point (with retries while a click only stops a sound) until `pages` shows. */
+async function clickUntil(page: Page, x: number, y: number, pages: RegExp): Promise<void> {
+  const body = page.locator('body');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const point = await toClient(page, x, y);
+    await page.mouse.click(point.x, point.y);
+    const reached = await expect(body)
+      .toHaveAttribute('data-pages', pages, { timeout: 8_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (reached) return;
+  }
+  await expect(body).toHaveAttribute('data-pages', pages);
+}
+
+/** Clicks one of the options of the Options popup on top. */
+async function clickOption(page: Page, option: keyof typeof OPTION_POINTS): Promise<void> {
+  const picture = await page.evaluate(() => {
+    const { engine } = (
+      window as unknown as { twtw: { engine: { windows: { x: number; y: number; caption: number }[] } } }
+    ).twtw;
+    const top = engine.windows.at(-1)!;
+    return { x: top.x, y: top.y + top.caption };
+  });
+  const point = await toClient(
+    page,
+    picture.x + OPTION_POINTS[option].x,
+    picture.y + OPTION_POINTS[option].y,
+  );
+  await page.mouse.click(point.x, point.y);
+}
+
+/** Opens the Options popup and clicks one of its options. */
+async function chooseOption(page: Page, option: keyof typeof OPTION_POINTS): Promise<void> {
+  await clickUntil(page, OPTIONS_BUTTON.x, OPTIONS_BUTTON.y, new RegExp(` ${OPTIONS_POPUP}$`));
+  await clickOption(page, option);
+}
+
+/** The size of the PNG on the clipboard. */
+async function clipboardImageSize(page: Page): Promise<number[]> {
+  return page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    const item = items.find((candidate) => candidate.types.includes('image/png'));
+    if (item === undefined) throw new Error(`no PNG on the clipboard: ${items.map((i) => i.types).join()}`);
+    const bitmap = await createImageBitmap(await item.getType('image/png'));
+    return [bitmap.width, bitmap.height];
+  });
+}
+
+/** Replaces window.print, which would block, with a counter. */
+async function stubPrint(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const counted = window as unknown as { printed: number };
+    counted.printed = 0;
+    window.print = () => {
+      counted.printed++;
+    };
+  });
+}
+
+const printCount = (page: Page) => page.evaluate(() => (window as unknown as { printed: number }).printed);
+
+test.describe('copy', () => {
+  test.skip(!hasDisc, 'no extracted disc (vendor/cd or $TWTW_CD): run "pnpm data"');
+  test.use({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
+
+  test.beforeEach(async ({ context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  });
+
+  test('Options → Copy puts the base page’s captioned picture on the clipboard at 2×', async ({ page }) => {
+    await startAt(page, AIRPLANE, false);
+    await chooseOption(page, 'copy');
+    await expect(page.locator('#toast')).toHaveText('Picture copied');
+    expect(await clipboardImageSize(page)).toEqual([638 * 2, (459 + 40) * 2]);
+    await expect(page.locator('#picture-overlay')).toBeHidden();
+  });
+
+  test('Options → Copy copies the popup that was on top', async ({ page }) => {
+    await startAt(page, AIRPLANE, false, AIRPLANE_POPUP);
+    await chooseOption(page, 'copy');
+    await expect(page.locator('#toast')).toHaveText('Picture copied');
+    expect(await clipboardImageSize(page)).toEqual([287 * 2, (330 + 40) * 2]);
+  });
+
+  test('the settings menu copies the page on top', async ({ page }) => {
+    await startAt(page, AIRPLANE, false, AIRPLANE_POPUP);
+    await page.locator('#settings-button').click();
+    await page.locator('#setting-copy').click();
+    await expect(page.locator('#settings')).toBeHidden();
+    await expect(page.locator('#toast')).toHaveText('Picture copied');
+    expect(await clipboardImageSize(page)).toEqual([287 * 2, (330 + 40) * 2]);
+  });
+
+  test('without a clipboard, shows the picture to copy by hand or save', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, 'clipboard', { get: () => undefined });
+    });
+    await startAt(page, AIRPLANE, false);
+    await page.locator('#settings-button').click();
+    await page.locator('#setting-copy').click();
+    const overlay = page.locator('#picture-overlay');
+    await expect(overlay).toBeVisible();
+    const image = page.locator('#picture-overlay-image');
+    await expect(image).toHaveJSProperty('complete', true);
+    expect(await image.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])).toEqual([
+      1276, 998,
+    ]);
+    const save = page.locator('#picture-save');
+    await expect(save).toHaveAttribute('download', `the-way-things-work-${AIRPLANE}.png`);
+    await expect(save).toHaveAttribute('href', /^blob:/);
+    await screenshot(page, 'copy fallback');
+    // Keys go to the overlay, not to the engine; Esc closes it.
+    await page.keyboard.press('Escape');
+    await expect(overlay).toBeHidden();
+  });
+});
+
+test.describe('print', () => {
+  test.skip(!hasDisc, 'no extracted disc (vendor/cd or $TWTW_CD): run "pnpm data"');
+  test.use({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+
+  /** Saves the printout as a PDF for `paper`, and returns its number of pages. */
+  async function pdf(page: Page, name: string, paper: 'A4' | 'Letter'): Promise<number> {
+    const bytes = await page.pdf({ format: paper, preferCSSPageSize: true, printBackground: true });
+    if (SCREENSHOTS !== undefined) {
+      mkdirSync(SCREENSHOTS, { recursive: true });
+      writeFileSync(join(SCREENSHOTS, `print-${name}-${paper}.pdf`), bytes);
+    }
+    return bytes.toString('latin1').match(/\/Type\s*\/Page\b/g)?.length ?? 0;
+  }
+
+  test('Options → Print lays out the base page’s 4× picture alone, centred, in landscape', async ({
+    page,
+  }) => {
+    await stubPrint(page);
+    await startAt(page, AIRPLANE, false);
+    await chooseOption(page, 'print');
+    await expect.poll(() => printCount(page)).toBe(1);
+    const picture = page.locator('#print-picture');
+    expect(await picture.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])).toEqual([
+      2552, 1996,
+    ]);
+    await expect(page.locator('#print')).toBeHidden();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('#print')).toBeVisible();
+    for (const hidden of ['#stage-box', '#settings-button', '#status', '#toast']) {
+      await expect(page.locator(hidden)).toBeHidden();
+    }
+    await expect(page.locator('#print')).toHaveAttribute('data-orientation', 'landscape');
+    await expect(page.locator('#print-page')).toHaveJSProperty(
+      'textContent',
+      '@page { size: landscape; margin: 10mm; }',
+    );
+    // The picture's size: a full screen with its band fits the area (here the viewport).
+    const box = (await picture.boundingBox())!;
+    const scale = Math.min(1280 / 640, 800 / 520);
+    expect(box.width).toBeCloseTo(638 * scale, 0);
+    expect(box.height).toBeCloseTo(499 * scale, 0);
+    // Centred.
+    expect(box.x).toBeCloseTo((1280 - box.width) / 2, 0);
+    expect(box.y).toBeCloseTo((800 - box.height) / 2, 0);
+    for (const paper of ['A4', 'Letter'] as const) expect(await pdf(page, 'base', paper)).toBe(1);
+  });
+
+  test('Options → Print of a popup, and Printer setup, open the print dialog in portrait', async ({
+    page,
+  }) => {
+    await stubPrint(page);
+    await startAt(page, AIRPLANE, false, AIRPLANE_POPUP);
+    await chooseOption(page, 'print');
+    await expect.poll(() => printCount(page)).toBe(1);
+    const picture = page.locator('#print-picture');
+    expect(await picture.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])).toEqual([
+      287 * 4,
+      370 * 4,
+    ]);
+    await expect(page.locator('#print')).toHaveAttribute('data-orientation', 'portrait');
+    await page.emulateMedia({ media: 'print' });
+    // The same scale as a full screen: W/640 of a full screen's width.
+    const box = (await picture.boundingBox())!;
+    expect(box.width).toBeCloseTo(287 * Math.min(1280 / 640, 800 / 520), 0);
+    for (const paper of ['A4', 'Letter'] as const) expect(await pdf(page, 'popup', paper)).toBe(1);
+    await page.emulateMedia({ media: 'screen' });
+    // Printer setup: the browser's print dialog is where printer and paper are chosen.
+    await clickOption(page, 'setup');
+    await expect.poll(() => printCount(page)).toBe(2);
+  });
+
+  test('the settings menu and Ctrl+P print the page on top', async ({ page }) => {
+    await stubPrint(page);
+    await startAt(page, AIRPLANE, false);
+    await page.locator('#settings-button').click();
+    await page.locator('#setting-print').click();
+    await expect.poll(() => printCount(page)).toBe(1);
+    await expect(page.locator('#print')).toHaveAttribute('data-orientation', 'landscape');
+    await page.keyboard.press('Control+p');
+    await expect.poll(() => printCount(page)).toBe(2);
   });
 });

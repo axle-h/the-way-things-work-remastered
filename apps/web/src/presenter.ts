@@ -132,6 +132,8 @@ export class Presenter {
   }
 
   #resize(width: number, height: number, force: boolean): void {
+    // A hidden stage (the print layout, picture-output.ts) keeps its size for when it shows again.
+    if ((width <= 0 || height <= 0) && !force) return;
     const backingWidth = Math.max(1, width);
     const backingHeight = Math.max(1, height);
     const changed = backingWidth !== this.canvas.width || backingHeight !== this.canvas.height;

@@ -28,9 +28,10 @@ The browser app: a full-viewport canvas showing the engine's indexed framebuffer
 - fill mode;
 - volume, through the Web Audio output gain;
 - full screen;
+- **Copy picture** and **Print picture** (Phase 8, below);
 - "Show page info", the debug overlay listing the pages on screen, the history, loading problems and the stage's scale.
 
-Settings are kept in `localStorage` (`twtw.settings`), and the app works without storage. Phase 8 adds Print and Copy under `#settings-actions`. While the menu is open, keys go to the menu and not to the engine.
+Settings are kept in `localStorage` (`twtw.settings`), and the app works without storage. While the menu is open, keys go to the menu and not to the engine.
 
 **Prefetching** makes navigation snappy:
 - **What.** Once a page is on screen and the engine is idle (after 400 ms), the engine lists the files the next tap may need (`filesToPrefetch` in `@twtw/engine`). First come the sounds and animations the pages on screen play, then the pictures of the pages their hotspots, navigation buttons and link block lead to (plus the Back target), then those pages' sounds and animations.
@@ -40,8 +41,27 @@ Settings are kept in `localStorage` (`twtw.settings`), and the app works without
 
 **Device checks** (PLAN §5.7): `pnpm test:devices` runs Playwright (`e2e/devices.e2e.ts`, Chromium) against the dev server on port 47391 (`$TWTW_E2E_PORT`), with `/data` from `$TWTW_CD` or `vendor/cd`. Without the disc the tests skip.
 - **Viewports:** 1920×1080@1, 1366×768@1, 1440×900@2, 1024×768@2 (touch), 768×1024@2 (touch), 844×390@3 (touch), 568×320@2 (touch), 390×844@3 (portrait) and 600×400@1 (below native).
-- **Checks:** the scale and fit; that the backing store equals the viewport in device pixels; centring; the portrait screen; that a tap or click on a hotspot of the Airplane page reaches its target page; the Index soft keyboard; and the fill setting surviving a reload.
-- **Screenshots:** set `TWTW_SCREENSHOTS=<dir>` to save one per device. They show disc content, so keep them out of the repository. Playwright's own output goes to the gitignored `test-results/`.
+- **Checks:** the scale and fit; that the backing store equals the viewport in device pixels; centring; the portrait screen; that a tap or click on a hotspot of the Airplane page reaches its target page; the Index soft keyboard; the fill setting surviving a reload; and Copy and Print (below).
+- **Screenshots:** set `TWTW_SCREENSHOTS=<dir>` to save one per device, and the printouts as PDFs (`print-base-A4.pdf`, `print-popup-Letter.pdf`, …). They show disc content, so keep them out of the repository. Playwright's own output goes to the gitignored `test-results/`.
+
+## Copy and print (Phase 8)
+
+What the original copies and prints is in `docs/formats/special-screens.md` §4: the page's picture with a 40-row white band and the copyright line, 638×499 for a base page, W×(H+40) for a popup. The engine builds it (`Engine.copyImage`); `src/picture-output.ts` copies and prints it; the sizes and layout are pure functions in `src/print-layout.ts`, and the PNG encoder is `src/png.ts` (a palette PNG, deflated with the platform's `CompressionStream`; the canvas encoder stands in where that is missing).
+
+**Where from.**
+- The original's Options popup (navigation bar → Options): Copy active window, Print active window, Printer setup. They act on the page that was on top when Options was pressed.
+- The settings menu's **Copy picture** and **Print picture**, which act on the page on top by the same rule (`Engine.pictureTarget`; never the Options popup itself).
+- **Ctrl+P** (⌘P) prints the page on top in the same way. Printing from the browser's menu does too, best effort (the picture is made in `beforeprint`). The original has no keyboard shortcuts for copy or print, so there is no Ctrl+C.
+
+**Copy** puts the picture on the clipboard as a PNG at **2×** (`COPY_SCALE`: 1276×998 for a base page) with `navigator.clipboard.write` and a `ClipboardItem`, called within the click so that the browser allows it, and shows "Picture copied". 2× rather than 1×: at its own size the picture is small on today's screens and the application it is pasted into enlarges it with smoothing; at 2× it is the size it appears on a high-density screen, and it stays a small palette PNG. The clipboard needs a secure context (`localhost` or HTTPS). Where it is missing or refuses, the app shows the picture instead, at a whole scale, to copy with a long press or right click, with **Save picture** (a download) and **Close** (Esc).
+
+**Print** opens the browser's print dialog (`window.print()`) with a print-only element (`#print`, hidden on screen) holding only the captioned picture; the stage, the menus and the letterbox are hidden on paper.
+- The picture is a **4×** PNG (`PRINT_SCALE`: 2552×1996 for a base page, about 300 pixels to the inch on paper), shown with `image-rendering: pixelated`.
+- **Size:** every picture prints at one scale, the one at which a full 640×520 screen with its band fits the printable area (`printedSize`). So a full-screen picture spans the printable width or height, and a popup prints at W/640 of a full screen's width, as in the original (special-screens.md §4.8 has the small difference from the original's rule).
+- **Orientation and margins:** landscape for a picture wider than tall (every base page), portrait otherwise, with 10 mm margins (`@page`, written per picture into `#print-page`).
+- **Placement: centred** on the sheet, **Alex's decision**, instead of the original's top-left. `PRINT_PLACEMENT` in `src/print-layout.ts` is the one place to change it: `'centred'` (the default) or `'top-left'` (the original's). There is no setting for it.
+- **Printer setup** (the Options popup's third option) opens the print dialog for the same page, because that is where the browser chooses the printer and paper. Cancelling it prints nothing, as cancelling the original's dialog changes nothing.
+- Checked with Chromium's PDF output on A4 and Letter (`pnpm test:devices` with `TWTW_SCREENSHOTS`): one page each, the picture embedded at full resolution and not interpolated. Still to check by hand: Safari and Firefox print preview, and on paper.
 
 ## Sound and the "tap to start" gate
 
@@ -59,7 +79,7 @@ In development builds, `window.twtw` holds the engine, the media, the sink, the 
 
 - **Index**: typing, Tab, Enter, Esc, the arrows and Page Up/Down go to the Index while it is open; the list scrolls with its scroll bar, and by swiping on a touch screen (a tap on a row selects it, a tap on the selected row goes).
 - **Help**: the scrolling Help pages scroll with their bar; on a touch screen the thumb keeps following the finger off the bar, and swiping the picture scrolls it.
-- **Copy and print** (Options): until Phase 8 puts the picture on the clipboard or prints it, the app downloads it as a PNG (the page's picture with the copyright band).
+- **Copy and print** (Options): see "Copy and print (Phase 8)" above.
 - The page title is fixed: "The Way Things Work", as the original's window title.
 
 ## Playtest checklist (Phase 5)

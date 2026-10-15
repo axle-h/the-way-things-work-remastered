@@ -10,7 +10,7 @@ Coordinates are page coordinates under Windows 3.1 unless stated otherwise: page
 2. The list shows the names in data order, one per 13-pixel row, in MS Serif 8 point with simulated bold. Typing in the edit box selects the first name that starts with the typed text. OK, Enter or a double click "goes" to the selected entry: its target page, then each of its companion pages. Cancel or Esc closes the Index [C].
 3. A keyboard hook makes Tab switch between the edit box and the list, and makes Enter, Esc, Up, Down, Page Up and Page Down act on the list whichever control has the focus [C].
 4. The six Help pages with a long text use a ScrollBitmap (a window onto a tall picture) and a ScrollBar. Positions are in steps of about 18 pixels. Arrows step by one, the track by a page, the thumb can be dragged, and a held arrow or track repeats every 100 ms [C].
-5. Copy and print act on the page that was on top when the Options button was pressed. Both produce the page's picture with a 40-pixel white band below it holding a centred copyright line. Copy puts it on the clipboard. Print sends it straight to the default printer, scaled so that a full screen would fill the page width [C].
+5. Copy and print act on the page that was on top when the Options button was pressed. Both produce the page's picture with a 40-pixel white band below it holding a centred copyright line. Copy puts it on the clipboard [V under Wine]. Print sends it straight to the default printer, scaled so that a full screen would fill the page width [C].
 6. No ChangePage on the disc uses a panel transition, so transitions are dropped [V].
 
 ## 1. The Index page
@@ -227,7 +227,7 @@ Provenance: load `1030:13ea`, draw `1030:2e40`, press `1030:2eb2`, release `1030
 ### 4.3 Which page "active window" means [C]
 Pressing the Options button records the **newest open page window**: the most recently opened popup still open (or the Index), else the base page (behaviour.md §6.2). Copy and print act on that page, if it is still open when the option is clicked; otherwise they do nothing. The Options popup itself is never the target. "Newest" is opening order, which can differ from the stacking order if the user has clicked an older popup since.
 
-### 4.4 The picture that is copied or printed [C]
+### 4.4 The picture that is copied or printed [C][V]
 Provenance: page picture `1028:661c`, caption band `1010:e936`, strings 5000 and 2001 of the EXE string table.
 1. **The page's picture**: an off-screen bitmap of the page's content size, into which each of the page's panels is painted at its PanelRef position, exactly as on screen at rest (rendering.md §3). Content size: the template's fixed size if set (638×459 on the title template), else the single panel's size (a popup: its picture, e.g. 287×330), else the right and bottom extent of all panels (638×459 for base pages, nav bar and frame included).
    - Not included: the caption strip, the shadow, other windows on top, animation frames on screen (animations draw straight to the window; their objects paint nothing), the A–Z lamp, and the Index's controls (the Index would copy as its empty frame). Included: the A–Z dial's current letter, an AnimationControl strip, and ScrollBitmaps and ScrollBars at their current position [C][H for animation frames].
@@ -238,11 +238,18 @@ Provenance: page picture `1028:661c`, caption band `1010:e936`, strings 5000 and
 
 So a base page copies or prints as 638×499 pixels, a 287×330 popup as 287×370.
 
-### 4.5 Copy (option 1) [C]
+**Observed under Wine** (wine-staging 11, 24-bit X display; Phase 8) [V]: Options → Copy on the Airplane page (1538) put a 638×499 picture on the clipboard, and with the Airplane popup 2534 opened first, a 287×370 one. In both, the 459 (or 330) picture rows are **identical, pixel for pixel, to the remake's `buildCopyImage`** (with the Wine palette patch of reference-environments.md), and the band is white. The caption's ink lies at columns 129–508, rows 474–486 for the base page, which fits the System-font cell at (128, 471) above. For the popup, a smaller sans-serif face, 9 rows of ink at columns 20–267, rows 346–354, confirms the narrow-font path; the face is Wine's substitute for "Ariel", so its glyphs say nothing about Windows 3.1. Wine's X clipboard bridge did not export the picture (the X `CLIPBOARD` selection stayed unowned), so it was read inside Wine with a small clipboard dump program of our own.
+
+The remake's copy and print of this picture, including **Alex's decision to centre printouts on the sheet** (rather than the original's top-left placement), are in section 4.8.
+
+### 4.5 Copy (option 1) [C][V]
 Provenance: `1028:5836` → `1028:5926`.
-The captioned picture goes to the Windows clipboard, replacing its contents, in two formats: a device-independent bitmap (`CF_DIB`: 8 bits per pixel with a 256-entry colour table holding the screen palette's colours) and a device bitmap (`CF_BITMAP`). No palette format is added. Nothing is shown on screen.
+The captioned picture goes to the Windows clipboard, replacing its contents, in two formats: a device-independent bitmap (`CF_DIB`) and a device bitmap (`CF_BITMAP`). No palette format is added. Nothing is shown on screen.
+- [V under Wine] The program empties the clipboard, sets `CF_DIB` then `CF_BITMAP`, and closes it (Wine's clipboard trace). Afterwards the clipboard holds formats 8 (`CF_DIB`), 2 (`CF_BITMAP`) and 17 (`CF_DIBV5`, which Wine synthesises), and no `CF_PALETTE`.
+- The DIB takes the display's depth: 24 bits per pixel under Wine's true-colour display [V]. On a 256-colour display (Windows 3.1 at 640×480×256) that is 8 bits per pixel with a 256-entry colour table holding the screen palette's colours [C; not yet seen in DOSBox-X].
 
 ### 4.6 Print (option 2) [C]
+Not observed: the reference machine has no printer, and Wine prints only through CUPS. Under Wine with no printer installed, Print does nothing visible (no dialog, no message) [V]; the layout below stays [C].
 Provenance: `1028:5800` → `1028:5870` → `1028:59b2`; layout `1028:5f14`; printer `1028:617a`.
 - **No print dialog.** The job goes at once to the printer last chosen in Printer Setup during this session, with the settings chosen there (orientation, paper), or else to the Windows default printer with its defaults.
 - A small modeless dialog titled "Printing" shows "Printing", a progress line "*n*% Done" and a Cancel button while the job runs. The document name is "The Way Things Work" (string 2001).
@@ -254,15 +261,17 @@ Provenance: `1028:5800` → `1028:5870` → `1028:59b2`; layout `1028:5f14`; pri
   So a base page fills almost the full width at the top of the sheet, and a popup prints at the same scale, smaller and in the top-left corner. Nothing else is printed.
 - The image is stretched with the "colour on colour" mode, i.e. by repeating or dropping whole rows and columns, never smoothed [C].
 
-### 4.7 Printer setup (option 3) [C]
+### 4.7 Printer setup (option 3) [C][V]
 Provenance: `1028:6a7e`.
-The standard Windows "Print Setup" common dialog, owned by the program's window. Its result (printer, orientation, paper) is kept for later prints until the program exits. Cancelling changes nothing.
+The standard Windows "Print Setup" common dialog, owned by the program's window. Its result (printer, orientation, paper) is kept for later prints until the program exits. Cancelling changes nothing. Under Wine with no printer installed, the common dialog code shows its "install a printer" message instead [V].
 
 ### 4.8 For the remake (Phase 8)
-- **Copy**: build the captioned image (page picture + 40-row white band + the copyright line centred in black) and copy it as PNG at native size or an integer upscale (PLAN Phase 8). The caption font: an approximation of the System font for wide pictures and a small sans-serif for narrow ones; exact glyphs are not required.
-- **Print**: print the same captioned image with nearest-neighbour scaling, top-left aligned, at the original's proportion of the page width (a full-screen picture spans the printable width; a popup spans *W*/640 of it). Whether to keep the top-left placement or centre the picture on the sheet is a presentation choice for Alex. The browser's own print dialog replaces the original's direct printing, and its page setup replaces Printer Setup (option 3 can open the print dialog or be dropped).
-- The legal line is part of the original's output and should be kept.
-- **Phase 6**: the engine builds the captioned picture (`buildCopyImage`, `Engine.copyImage`) as an indexed image in the screen palette and hands it to the presenter with the ProductOption event; the copyright line is read from string 5000 of `TWTW.EXE` at runtime. The caption is drawn with the engine's own font (section 1.12) in bold when it fits, regular when only that fits, else squeezed to the picture's width by dropping columns, an approximation of both of the original's fonts. The web app offers the picture as a PNG download until Phase 8 copies and prints it.
+- **The picture**: the engine builds the captioned picture (`buildCopyImage`, `Engine.copyImage`) as an indexed image in the screen palette and hands it to the presenter with the ProductOption event; the copyright line is read from string 5000 of `TWTW.EXE` at runtime. The caption is drawn with the engine's own font (section 1.12) in bold when it fits, regular when only that fits, else squeezed to the picture's width by dropping columns, an approximation of both of the original's fonts (exact glyphs are not required). The legal line is part of the original's output and is kept.
+- **Copy** (option 1): the captioned picture as a PNG at 2× on the clipboard (`navigator.clipboard.write`). Where the clipboard is missing or refuses, the picture is shown so that it can be copied with a long press or right click, or saved.
+- **Print** (option 2): the browser's print dialog replaces the original's direct printing. Only the captioned picture is printed, with nearest-neighbour scaling, at one scale for every picture on a sheet: the smaller of the original's two scales (a 640-pixel screen spanning the printable width, 520 rows filling its height), so a popup still prints at *W*/640 of a full screen's width. The original takes the height scale only when the picture itself would overflow, so on a landscape sheet a wide picture under about 440 rows prints up to a fifth larger there. Wide pictures print in landscape, tall ones in portrait.
+- **Placement: centred on the sheet. Alex's decision** (2026-10-15), instead of the original's top-left placement (section 4.6). The web app keeps both as one named option, `PRINT_PLACEMENT` (apps/web).
+- **Printer setup** (option 3): the browser has no separate print setup; printer and paper are chosen in its print dialog, so option 3 opens the print dialog for the same page. Cancelling it prints nothing, as cancelling the original's dialog changes nothing.
+- **Outside the Options popup** (remake additions): Copy and Print in the settings menu, and Ctrl+P, act on the page by the Options button's rule (section 4.3, `Engine.pictureTarget`). The original has no shortcuts for them (program.md, Commands).
 
 ## 5. Help pages [C][V]
 - The navigation bar's Help button (button 7) closes the Help page (popup 117408) if it is open, then opens it. 117408 is `HELP0M00`, 560×410, origin (−54, 17), so its window is at page (39, 21) and its picture at (39, 29)–(599, 439) under Windows 3.1: wide, but inside the screen [C][V].
@@ -304,7 +313,7 @@ Every type the database defines, where it is specified, and what the remake does
 | Action | 2 SendMessage | behaviour.md §4.5 | implement (only (181, 59)) |
 | Action | 4 PlayWave, 7 PlayPics | playback.md §4 | implement |
 | Action | 5 StopWave, 6 SeekWave, 8 PlayPicsNoLoad, 9 PlayNonQueuedPics, 10 StopPics, 13 SeekPics | playback.md §4 | none on the disc; implemented from the spec (SeekWave does nothing) |
-| Action | 11 ProductOption | section 4 | implement: the copy and print picture (Phase 6); clipboard, printing and print setup in Phase 8 |
+| Action | 11 ProductOption | section 4 | implement: the copy and print picture (Phase 6); clipboard, printing and print setup (Phase 8, section 4.8) |
 | Event | 1 open, 4 click, 6 finished | behaviour.md §2 | implement |
 | Event | 5 before open | behaviour.md §2 | none on the disc; fired for popups (rendering.md §8) |
 | Event | 2 app activated, 3 close | behaviour.md §2 | **dropped**: no handler on the disc, and when the original fires them is not established |
@@ -322,7 +331,7 @@ None of these screens has a reference capture yet. Under Wine (`tools/refcapture
 2. The Options popup: `pnpm refcapture path workshop 438408:849:8` (page 278816): the CancelButton and its two extra columns and rows (section 4.2).
 3. Options → Mammoth Movies: `pnpm refcapture path workshop 438408:849:8 278816:1:2` (page 279010): the window placement after a popup-to-popup change of size (rendering.md §7.7).
 4. Help: `pnpm refcapture path workshop 438408:849:9` (page 117408), then the scrolling pages `… 438408:849:9 117408:1:36` (142290) and `… 438408:849:9 117408:1:38` (146482). Then a click on the bar's centre, `… 117408:1:38 146482:1:3` (page down on `helpbmt0`): expect position 16, so the picture from its row 291 and the thumb top at panel row 125 (section 3.2: *d* = 1,220, *n* = 67, *t* = 255). A click held longer than 100 ms steps more than once, so record the press duration.
-5. Copy: `… 438408:849:8 278816:1:5`, then read the X clipboard on the nested display (for example `xclip -display :5 -selection clipboard -t TARGETS -o`, then the image target). Expect 638×499 with the white band and the copyright line; and, after opening a popup first, *W*×(*H*+40) with the narrow-font caption.
+5. ~~Copy~~: done in Phase 8 (section 4.4). Wine's X clipboard bridge does not export the picture, so read the clipboard inside Wine instead.
 6. Help button twice after moving to another Help page: two Help windows (section 5).
 7. Keyboard on the Index (needs key input in the harness): type "air", Down, Page Down, Tab, Enter; check the selection, the edit box text and the page reached (with its companion popup open).
 

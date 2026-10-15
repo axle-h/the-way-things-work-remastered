@@ -58,7 +58,7 @@ export const ACTION_TYPE_SUPPORT: Readonly<Record<ActionKind, TypeSupport>> = {
   playNonQueuedPics: implemented('playback.md §4; none on the disc'),
   stopPics: implemented('playback.md §4; none on the disc'),
   productOption: implemented(
-    'special-screens.md §4: the copy and print picture; Phase 8 copies and prints it',
+    'special-screens.md §4: the copy and print picture; the web app copies and prints it (§4.8)',
   ),
   closePage: implemented('behaviour.md §4.4'),
   seekPics: implemented('playback.md §4; none on the disc'),

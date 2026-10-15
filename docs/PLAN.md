@@ -190,6 +190,7 @@ Status: **implemented** (2026-10-15); the manual playtest on the kids' tablet an
 - **Done when:** the device checks (§5.7) pass, and the kids can use it locally on a tablet, a laptop and a phone in landscape without help.
 
 ### Phase 8 — Print and copy (last web-app feature phase)
+Status: **implemented** (2026-10-15). Copy puts a 2× PNG of the captioned picture on the clipboard (fallback: an overlay with Save picture); Print uses the browser's dialog with a 4× picture, centred (Alex's decision). Copy and Printer Setup confirmed under Wine. Still to check by hand: Safari and Firefox print preview, real paper, copy on iPad Safari.
 - First establish, by observing the original in the reference environment, what it prints and copies (base picture, popup, caption, layout). Write it into `program.md`.
 - **Copy:** put the same picture on the clipboard as PNG, at native 640×480 or an integer upscale, via `navigator.clipboard.write` with a `ClipboardItem`. This requires a secure context, which `localhost` and the HTTPS deployment both provide. Fallback when unavailable: show the picture as an `<img>` so long-press/right-click "Copy image" works, plus a "Save picture" download.
 - **Print:** use the browser's native print dialog (`window.print()`). Build a print-only DOM (hidden on screen) and a print stylesheet:

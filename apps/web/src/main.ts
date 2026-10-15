@@ -9,7 +9,7 @@ import {
   type Clock,
   type CursorName,
   type EngineEvent,
-  type IndexedImage,
+  type PageInstance,
   type PageRef,
 } from '@twtw/engine';
 import { WebAudioSink } from './audio.ts';
@@ -20,7 +20,7 @@ import { HttpDataSource } from './http-source.ts';
 import { attachInput } from './input.ts';
 import { Prefetcher } from './prefetch.ts';
 import { Presenter } from './presenter.ts';
-import { indexedToRgba } from './rgba.ts';
+import { findPictureOutput, PictureOutput } from './picture-output.ts';
 import { loadSettings, saveSettings, type Settings } from './settings.ts';
 import { attachSettingsMenu, findSettingsMenu } from './settings-menu.ts';
 import { SoftKeyboard } from './soft-keyboard.ts';
@@ -94,6 +94,9 @@ presenter.onLayout((layout: StageLayout) => {
 });
 updateStatus();
 
+/** Copy and Print (Phase 8): the clipboard, the fallback picture, the print-only element. */
+const output = new PictureOutput(findPictureOutput());
+
 const menu = attachSettingsMenu(findSettingsMenu(), settings, (next) => {
   settings = next;
   saveSettings(storage, settings);
@@ -133,12 +136,32 @@ async function showHashState(engine: Engine): Promise<void> {
   for (const ref of refs.slice(1)) await engine.openPage(ref);
 }
 
-function onEvent(event: EngineEvent, palette: Uint8Array): void {
+/** The name a saved picture gets. */
+const pictureName = (page: PageInstance): string => `the-way-things-work-${page.ref}.png`;
+
+/** Copies a page's captioned picture (special-screens.md §4.5); call it from the user's gesture. */
+function copyPage(engine: Engine, page: PageInstance | null, image = page && engine.copyImage(page)): void {
+  if (page === null || image === null) return;
+  output.copy(image, engine.palette, pictureName(page)).catch(report);
+}
+
+/** Prints a page's captioned picture through the browser's print dialog (special-screens.md §4.6). */
+function printPage(engine: Engine, page: PageInstance | null, image = page && engine.copyImage(page)): void {
+  if (image === null) return;
+  output.print(image, engine.palette).catch(report);
+}
+
+function onEvent(engine: Engine, event: EngineEvent): void {
   switch (event.kind) {
     case 'productOption':
-      // Copy and print are Phase 8; until then the picture they would use is offered as a download.
-      console.info(`product option ${event.option} for page ${event.page?.ref ?? 'none'}`);
-      if (event.image !== null) downloadImage(event.image, palette, `twtw-${event.page?.ref ?? 'page'}.png`);
+      // The Options popup (special-screens.md §4.5–4.7): 1 copy, 2 print, 3 printer setup. The
+      // browser's print dialog is where the printer and paper are chosen, so printer setup opens
+      // it for the same page; cancelling it prints nothing, as cancelling the original's changes
+      // nothing. With the recorded page closed, the original does nothing, and so does this.
+      if (event.page === null) break;
+      if (event.option === 1) copyPage(engine, event.page, event.image ?? undefined);
+      else if (event.option === 2 || event.option === 3)
+        printPage(engine, event.page, event.image ?? undefined);
       break;
     case 'quit':
       break;
@@ -149,6 +172,36 @@ function onEvent(event: EngineEvent, palette: Uint8Array): void {
       report(event.error);
       break;
   }
+}
+
+/**
+ * The settings menu's Copy and Print, and the browser's own printing (Ctrl+P, its menu): they act
+ * on the page on top, by the Options button's rule ({@link Engine.pictureTarget}). The original has
+ * no shortcuts of its own (program.md, Commands).
+ */
+function attachPictureCommands(engine: Engine): void {
+  const copy = document.querySelector<HTMLButtonElement>('#setting-copy')!;
+  const print = document.querySelector<HTMLButtonElement>('#setting-print')!;
+  copy.disabled = false;
+  print.disabled = false;
+  copy.addEventListener('click', () => {
+    menu.close();
+    copyPage(engine, engine.pictureTarget);
+  });
+  print.addEventListener('click', () => {
+    menu.close();
+    printPage(engine, engine.pictureTarget);
+  });
+  window.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'p') {
+      event.preventDefault();
+      printPage(engine, engine.pictureTarget);
+    }
+  });
+  window.addEventListener('beforeprint', () => {
+    const page = engine.pictureTarget;
+    if (page !== null) output.prepareForBrowserPrint(engine.copyImage(page), engine.palette);
+  });
 }
 
 /**
@@ -186,7 +239,8 @@ async function start(): Promise<void> {
     clock: systemClock,
     media,
   });
-  running.on((event) => onEvent(event, running.palette));
+  running.on((event) => onEvent(running, event));
+  attachPictureCommands(running);
   if (import.meta.env.DEV) {
     // For poking at playback from the browser console, and for the device checks (e2e/).
     Object.assign(window, { twtw: { engine: running, media, sink: audio, playbackLog, presenter, source } });
@@ -217,6 +271,7 @@ async function start(): Promise<void> {
       afterTouchRelease: () => softKeyboard.afterTap(),
       acceptKey: (event) =>
         !menu.isOpen() &&
+        !output.overlayOpen &&
         !(
           event.target instanceof HTMLElement && event.target.closest('#settings, #settings-button') !== null
         ),
@@ -273,26 +328,6 @@ async function start(): Promise<void> {
 
 /** After a page change, how long to leave the network to the page itself. */
 const PREFETCH_DELAY_MS = 400;
-
-/** Saves an indexed picture as a PNG file (a debug stand-in for Phase 8's copy and print). */
-function downloadImage(image: IndexedImage, palette: Uint8Array, name: string): void {
-  const canvas = document.createElement('canvas');
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const context = canvas.getContext('2d');
-  if (context === null) return;
-  const data = context.createImageData(image.width, image.height);
-  indexedToRgba(image.pixels, palette, data.data);
-  context.putImageData(data, 0, 0);
-  canvas.toBlob((blob) => {
-    if (blob === null) return;
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = name;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
-  }, 'image/png');
-}
 
 /** A sink that records each start (dev builds): when, from where, and when its sound is heard. */
 function loggingSink(sink: AudioSink, log: Record<string, unknown>[]): AudioSink {

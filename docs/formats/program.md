@@ -67,8 +67,8 @@ Article text is part of the bitmaps, the A–Z list pages included. The program 
 
 The AZDial panel's 26 strings are file names, not text. The main window's title, "The Way Things Work", is fixed and drawn by Windows; popups have no caption text (special-screens.md §7).
 
-## Printing and copying [C]
-Reached from the Options popup (see Commands above). Both take the target page's panels painted at rest (no caption strip, shadow or animation frames), add a 40-row white band with the copyright line, and either put it on the clipboard as a DIB and a bitmap, or print it top-left on the page, scaled so that a 640-pixel-wide screen would fill the printable width. A "Printing … % Done" dialog (resource `PRINTDLG`) shows progress. Full details: special-screens.md §4. To be confirmed against the original before Phase 8.
+## Printing and copying [C][V]
+Reached from the Options popup (see Commands above). Both take the target page's panels painted at rest (no caption strip, shadow or animation frames), add a 40-row white band with the copyright line, and either put it on the clipboard as a DIB and a bitmap, or print it top-left on the page, scaled so that a 640-pixel-wide screen would fill the printable width. A "Printing … % Done" dialog (resource `PRINTDLG`) shows progress. Full details: special-screens.md §4. Copy (base page and popup) and Printer Setup were observed under Wine and match (special-screens.md §4.4–4.7) [V]; the print layout is still [C], as the reference environment has no printer.
 
 ## Configuration: `TWTW.INI` [C]
 Read once at startup from the Windows directory (`1030:c762`, via `1018:8738`). The file name (string 2000) and the section name (string 27) come from the string table. **All keys are in section `[Directory]`.** Integer keys use `GetPrivateProfileInt`, so any non-zero value means on.

@@ -72,14 +72,34 @@
       <p id="fullscreen-hint" hidden>
         For full screen, use Share → Add to Home Screen, then open it from there.
       </p>
-      <!-- Phase 8 adds Print and Copy here. -->
-      <div id="settings-actions"></div>
+      <!-- Copy and Print the picture of the page on top (Phase 8; main.ts). -->
+      <div id="settings-actions">
+        <button id="setting-copy" type="button" disabled>Copy picture</button>
+        <button id="setting-print" type="button" disabled>Print picture</button>
+      </div>
       <label class="row debug">
         <input id="setting-debug" type="checkbox" />
         <span>Show page info</span>
       </label>
       <button id="settings-done" type="button">Done</button>
     </div>
+
+    <!-- Copy without a clipboard: the picture, to copy by hand or save (picture-output.ts). -->
+    <div id="picture-overlay" role="dialog" aria-label="Copy picture" hidden>
+      <img id="picture-overlay-image" alt="The picture of the page, with its copyright line" />
+      <p>Press and hold the picture, or right-click it, to copy it.</p>
+      <div class="buttons">
+        <a id="picture-save" role="button">Save picture</a>
+        <button id="picture-close" type="button">Close</button>
+      </div>
+    </div>
+    <p id="toast" role="status" hidden></p>
+
+    <!-- What Print prints: only this picture, shown only on paper (picture-output.ts). -->
+    <div id="print" aria-hidden="true">
+      <img id="print-picture" alt="" />
+    </div>
+    <style id="print-page"></style>
 
     <div id="rotate" hidden>
       <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">

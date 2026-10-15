@@ -1,6 +1,6 @@
 // The settings menu (docs/PLAN.md Phase 7): a gear button in a corner, outside the original's
-// picture, opening a small panel with fill mode, volume, full screen and the debug overlay.
-// Phase 8 adds Print and Copy to `#settings-actions`.
+// picture, opening a small panel with fill mode, volume, full screen, Copy and Print (Phase 8,
+// wired in main.ts once the engine runs) and the debug overlay.
 import type { Settings } from './settings.ts';
 import { PORTRAIT_PHONE_MAX_WIDTH as PHONE_MAX_SHORT_SIDE } from './stage.ts';
 
@@ -38,13 +38,14 @@ export function findSettingsMenu(root: ParentNode = document): SettingsMenuEleme
 
 /**
  * Wires the menu: shows `initial`, and calls `onChange` with the new settings on every change.
- * Returns whether the menu is open (for the keyboard: keys go to the menu then, not the engine).
+ * Returns whether the menu is open (for the keyboard: keys go to the menu then, not the engine),
+ * and a way to close it.
  */
 export function attachSettingsMenu(
   elements: SettingsMenuElements,
   initial: Settings,
   onChange: (settings: Settings) => void,
-): { readonly isOpen: () => boolean } {
+): { readonly isOpen: () => boolean; readonly close: () => void } {
   const { button, panel, backdrop, fill, volume, fullscreen, fullscreenHint, debug, done } = elements;
   let settings = initial;
   fill.checked = settings.fill;
@@ -91,7 +92,7 @@ export function attachSettingsMenu(
   document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
   updateFullscreenButton();
 
-  return { isOpen: () => panel.hidden === false };
+  return { isOpen: () => panel.hidden === false, close: () => setOpen(false) };
 }
 
 /** The prefixed Fullscreen API of older Safari (iPad). */
