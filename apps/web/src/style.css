@@ -1,25 +1,55 @@
 :root {
   color-scheme: dark;
-  background: #202020;
-  color: #c0c0c0;
+  /* The letterbox: neutral, and the same as the canvas's own margins. */
+  --letterbox: #000;
+  --panel: #262626;
+  --panel-text: #e6e6e6;
+  --muted: #9a9a9a;
+  --accent: #f0c419;
+  background: var(--letterbox);
+  color: var(--panel-text);
   font:
-    14px system-ui,
+    15px system-ui,
     sans-serif;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
+/* The app fills the viewport and never scrolls, zooms or bounces (docs/PLAN.md §3, "Responsive input"). */
+html,
 body {
   margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
   overscroll-behavior: none;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  background: var(--letterbox);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #stage-box {
-  position: relative;
+  position: fixed;
+  inset: 0;
+}
+
+/* The canvas covers the viewport; its backing store is sized in device pixels from its box, and
+   the picture is drawn into it at an integer scale, centred (stage.ts, presenter.ts). Never let
+   the browser smooth the artwork (docs/PLAN.md §3, "Scaling rules"). */
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--letterbox);
+  image-rendering: pixelated;
+  /* The stage takes every touch itself: no double-tap zoom, pinch, panning or long-press menu. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* "Tap to start": browsers allow sound only after a user gesture, so the title waits for one.
@@ -29,7 +59,7 @@ body {
   inset: 0;
   width: 100%;
   border: 0;
-  background: #000;
+  background: var(--letterbox);
   color: #fff;
   font:
     bold 24px system-ui,
@@ -47,24 +77,205 @@ body {
   display: none;
 }
 
-/* Never let the browser smooth the artwork (docs/PLAN.md §3, "Scaling rules"). */
-#stage {
-  display: block;
-  background: #000;
-  image-rendering: pixelated;
-  /* The stage takes every touch itself: no double-tap zoom, pinch, panning or long-press menu
-     (docs/PLAN.md §3, "Responsive input"). */
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  -webkit-tap-highlight-color: transparent;
+/* The soft keyboard's text field for the Index (soft-keyboard.ts): invisible, at the top so that
+   focusing it never pans the page; 16px so that iOS does not zoom in on it. */
+#soft-keyboard {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font-size: 16px;
+  caret-color: transparent;
+  pointer-events: none;
+  /* iOS Safari will not type into a field that inherits user-select: none. */
+  user-select: text;
+  -webkit-user-select: text;
 }
 
-/* Dev overlay: the pages on screen and any loading problems. */
+/* Debug overlay: the pages on screen, loading problems, and the stage's scale. */
 #status {
+  position: fixed;
+  left: 4px;
+  bottom: 4px;
+  max-width: calc(100% - 8px);
   margin: 0;
+  padding: 4px 6px;
   white-space: pre-wrap;
   font-family: ui-monospace, monospace;
-  font-size: 12px;
+  font-size: 11px;
+  color: #d0d0d0;
+  background: rgb(0 0 0 / 70%);
+  pointer-events: none;
+}
+
+#status[hidden] {
+  display: none;
+}
+
+/* The settings button sits in a corner, in the letterbox when there is one (main.ts). */
+#settings-button {
+  position: fixed;
+  top: max(6px, env(safe-area-inset-top));
+  right: max(6px, env(safe-area-inset-right));
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: rgb(40 40 40 / 55%);
+  opacity: 0.6;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#settings-button:hover,
+#settings-button:focus-visible,
+#settings-button[aria-expanded='true'] {
+  opacity: 1;
+}
+
+#settings-button svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 35%);
+}
+
+#settings {
+  position: fixed;
+  top: max(48px, env(safe-area-inset-top));
+  right: max(6px, env(safe-area-inset-right));
+  box-sizing: border-box;
+  width: min(300px, calc(100% - 12px));
+  max-height: calc(100% - 56px);
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 10px;
+  color: var(--panel-text);
+  background: var(--panel);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 60%);
+  touch-action: manipulation;
+}
+
+#settings[hidden],
+#settings-backdrop[hidden],
+#fullscreen-hint[hidden],
+#rotate[hidden] {
+  display: none;
+}
+
+#settings h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+#settings .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+#settings small,
+#fullscreen-hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#fullscreen-hint {
+  margin: 0;
+}
+
+#settings input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+#settings input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+#settings button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--panel-text);
+  background: #3a3a3a;
+  font: inherit;
+  cursor: pointer;
+}
+
+#settings button:hover {
+  background: #474747;
+}
+
+#settings-actions:empty {
+  display: none;
+}
+
+/* A phone held upright: a friendly request to turn it, instead of a tiny picture (stage.ts). */
+#rotate {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  color: #fff;
+  background: #10223a;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+#rotate p {
+  margin: 0;
+}
+
+#rotate .phone {
+  transform-origin: 60px 60px;
+  animation: turn 2.4s ease-in-out infinite;
+}
+
+@keyframes turn {
+  0%,
+  25% {
+    transform: rotate(0deg);
+  }
+  55%,
+  85% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #rotate .phone {
+    animation: none;
+  }
+}
+
+body.portrait-phone #settings-button,
+body.portrait-phone #settings,
+body.portrait-phone #settings-backdrop {
+  display: none;
 }

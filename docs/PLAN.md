@@ -185,6 +185,7 @@ Status: **done** (2026-10-15). `pnpm compare` over all 1473 reference captures (
 - **Done when:** a full crawl comparison shows no unexplained diffs, and every action and object type is implemented or consciously dropped (noted in the spec).
 
 ### Phase 7 — Responsive presentation
+Status: **implemented** (2026-10-15); the manual playtest on the kids' tablet and phone is still to do. Integer nearest-neighbour scaling of the 638×459 client area (Alex: as the original), portrait screen, fullscreen and manifest, prefetching, settings menu, Index soft keyboard. `pnpm test:devices` (Playwright) checks 9 viewports.
 - The scaling rules and responsive input from §3, the portrait-phone screen, fullscreen and installable web-app manifest, preloading/caching for snappy navigation, and a small settings menu (fill mode, volume) outside the original's frame.
 - **Done when:** the device checks (§5.7) pass, and the kids can use it locally on a tablet, a laptop and a phone in landscape without help.
 

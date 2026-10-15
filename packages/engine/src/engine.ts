@@ -540,6 +540,28 @@ export class Engine {
   }
 
   /**
+   * Whether typing goes to the Index's edit box: the Index window has the focus and so does its
+   * edit box. A presenter on a touch device shows its soft keyboard then (special-screens.md §1.12).
+   */
+  get indexEditFocused(): boolean {
+    const window = this.#indexWindow();
+    return window !== null && window === this.#focus && window.index?.focus === 'edit';
+  }
+
+  /**
+   * Replaces the text of the Index's edit box as typing would, from a soft keyboard's text field
+   * (special-screens.md §1.12; {@link IndexScreen.setEditText}). Acts only while
+   * {@link indexEditFocused}. Returns whether the edit box took the text.
+   */
+  setIndexEditText(text: string, caret?: number): boolean {
+    const window = this.#indexWindow();
+    if (window === null || window.index === null || !this.indexEditFocused) return false;
+    const taken = window.index.setEditText(text, this.clock.now(), caret);
+    this.#dirty = true;
+    return taken;
+  }
+
+  /**
    * The application gained or lost activation (behaviour.md §10): losing it stops all media and
    * shows the focus popup's caption inactive.
    */

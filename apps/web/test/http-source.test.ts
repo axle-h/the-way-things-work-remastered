@@ -1,6 +1,7 @@
 import { DataNotFoundError } from '@twtw/engine';
 import { describe, expect, it } from 'vitest';
 import { parseDebugHash } from '../src/debug-hash.ts';
+import { ByteCache } from '../src/byte-cache.ts';
 import { HttpDataSource } from '../src/http-source.ts';
 import { indexedToRgba } from '../src/rgba.ts';
 
@@ -27,7 +28,7 @@ const fakeFetch: typeof fetch = (input) => {
 
 describe('HttpDataSource', () => {
   it('resolves names through the manifest and fetches them as stored', async () => {
-    const source = await HttpDataSource.open('/data/', fakeFetch);
+    const source = await HttpDataSource.open('/data/', { fetch: fakeFetch });
     expect(await source.read('dkcode\\twtw.png')).toEqual(Uint8Array.of(7, 8));
     expect(await source.read('dir with space/a#b.dib')).toEqual(Uint8Array.of(9));
     expect(await source.exists('DKCODE/TWTW.EXE')).toBe(false);
@@ -39,7 +40,7 @@ describe('HttpDataSource', () => {
   });
 
   it('rejects files missing from the manifest or the server', async () => {
-    const source = await HttpDataSource.open('/data/', fakeFetch);
+    const source = await HttpDataSource.open('/data/', { fetch: fakeFetch });
     const before = requested.length;
     await expect(source.read('NOPE.BIN')).rejects.toBeInstanceOf(DataNotFoundError);
     expect(requested.length).toBe(before); // not even requested
@@ -47,7 +48,65 @@ describe('HttpDataSource', () => {
   });
 
   it('fails to open without a manifest', async () => {
-    await expect(HttpDataSource.open('/elsewhere/', fakeFetch)).rejects.toThrow(/HTTP 404/);
+    await expect(HttpDataSource.open('/elsewhere/', { fetch: fakeFetch })).rejects.toThrow(/HTTP 404/);
+  });
+});
+
+describe('HttpDataSource cache and prefetch', () => {
+  it('knows sizes from the manifest', async () => {
+    const source = await HttpDataSource.open('/data/', { fetch: fakeFetch });
+    expect(source.sizeOf('dkcode/twtw.png')).toBe(2);
+    expect(source.sizeOf('nope')).toBeUndefined();
+  });
+
+  it('serves a prefetched file from memory, and a read joins a prefetch in flight', async () => {
+    const source = await HttpDataSource.open('/data/', { fetch: fakeFetch });
+    const before = requested.length;
+    const prefetching = source.prefetch('DKCODE/TWTW.PNG');
+    const reading = source.read('dkcode/twtw.png');
+    expect(await prefetching).toBe(true);
+    expect(await reading).toEqual(Uint8Array.of(7, 8));
+    expect(await source.read('DKCODE/TWTW.PNG')).toEqual(Uint8Array.of(7, 8));
+    expect(requested.length - before).toBe(1);
+  });
+
+  it('never rejects a prefetch', async () => {
+    const source = await HttpDataSource.open('/data/', { fetch: fakeFetch });
+    expect(await source.prefetch('NOPE.BIN')).toBe(false);
+    expect(await source.prefetch('gone/file.bin')).toBe(false);
+  });
+
+  it('fetches again once the cache is off', async () => {
+    const source = await HttpDataSource.open('/data/', { fetch: fakeFetch, cacheBytes: 0 });
+    const before = requested.length;
+    await source.read('DKCODE/TWTW.PNG');
+    await source.read('DKCODE/TWTW.PNG');
+    expect(requested.length - before).toBe(2);
+  });
+});
+
+describe('ByteCache', () => {
+  const bytes = (n: number) => new Uint8Array(n);
+
+  it('drops the least recently used entries over its budget', () => {
+    const cache = new ByteCache(10, 10);
+    cache.set('a', bytes(4));
+    cache.set('b', bytes(4));
+    cache.get('a'); // a is now the most recently used
+    cache.set('c', bytes(4));
+    expect([cache.has('a'), cache.has('b'), cache.has('c')]).toEqual([true, false, true]);
+    expect(cache.bytes).toBe(8);
+  });
+
+  it('does not keep entries larger than its limit, and replaces entries in place', () => {
+    const cache = new ByteCache(100, 10);
+    cache.set('big', bytes(11));
+    expect(cache.has('big')).toBe(false);
+    cache.set('a', bytes(5));
+    cache.set('a', bytes(3));
+    expect([cache.size, cache.bytes]).toEqual([1, 3]);
+    cache.delete('a');
+    expect([cache.size, cache.bytes]).toEqual([0, 0]);
   });
 });
 

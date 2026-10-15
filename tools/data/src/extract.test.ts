@@ -31,7 +31,8 @@ describe('extractIso', () => {
     expect((await readdir(root)).sort()).toEqual(['DKCODE', 'EMPTY.TXT', 'SETUP.EXE']);
     expect(await readdir(join(root, 'DKCODE'))).toEqual(['BIG.ANI']);
     expect(new Uint8Array(await readFile(join(root, 'SETUP.EXE')))).toEqual(Uint8Array.of(1, 2, 3));
-    expect(new Uint8Array(await readFile(join(root, 'DKCODE', 'BIG.ANI')))).toEqual(big);
+    // Buffer.equals: a deep toEqual over 3 MB is slow enough to time out under load.
+    expect((await readFile(join(root, 'DKCODE', 'BIG.ANI'))).equals(big)).toBe(true);
     expect((await stat(join(root, 'EMPTY.TXT'))).size).toBe(0);
   });
 

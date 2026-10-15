@@ -15,6 +15,7 @@
     "refcapture": "node tools/refcapture/src/main.ts",
     "compare": "node tools/compare/src/main.ts",
     "test": "vitest run",
+    "test:devices": "pnpm --filter @twtw/web test:devices",
     "typecheck": "pnpm -r --parallel typecheck",
     "lint": "eslint . && pnpm check:cleanroom",
     "check:cleanroom": "node tools/cleanroom/src/main.ts",

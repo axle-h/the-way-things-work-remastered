@@ -29,6 +29,10 @@ node_modules/
 dist/
 __pycache__/
 
+# Playwright output (device checks): screenshots of disc content
+test-results/
+playwright-report/
+
 # The public hostname, read by k8s/apply.sh; it must never be committed
 /k8s/host.local
 

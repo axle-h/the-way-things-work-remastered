@@ -426,6 +426,27 @@ export class IndexScreen {
     return { used: false, command: null };
   }
 
+  /**
+   * Replaces the edit box's whole text, the caret at `caret` (default: the end), as typing would:
+   * the list follows it (§1.8). This is how a touch device's soft keyboard types (§1.12): its
+   * hidden text field mirrors the edit box and hands over each new text. Characters the edit box
+   * cannot hold are dropped; a text that would not fit the box is refused. Acts only while the
+   * edit box has the focus. Returns whether the edit box took the text.
+   */
+  setEditText(text: string, time: number, caret?: number): boolean {
+    if (this.#focus !== 'edit') return false;
+    const edit = this.#edit;
+    const accepted = [...text].filter((char) => typedCharacter(char) !== null).join('');
+    if (accepted !== edit.text && accepted.length > edit.text.length && !this.#editFits(accepted))
+      return false;
+    const changed = accepted !== edit.text;
+    edit.text = accepted;
+    edit.moveTo(caret ?? accepted.length, false);
+    this.#blinkFrom = time;
+    if (changed) this.#editChanged();
+    return true;
+  }
+
   /** Keys the edit box handles itself (standard edit control [H]). */
   #editKey(input: IndexKey): boolean {
     const edit = this.#edit;

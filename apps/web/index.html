@@ -2,8 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>The Way Things Work</title>
+    <meta name="description" content="The Way Things Work, played from your own CD." />
+    <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/icon-192.png" sizes="192x192" type="image/png" />
+    <!-- Add to Home Screen on iOS, where there is no element fullscreen. -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Way Things Work" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -11,7 +22,91 @@
       <canvas id="stage" width="640" height="480"></canvas>
       <button id="gate" type="button" disabled>Loading…</button>
     </div>
-    <p id="status">Loading…</p>
+    <!-- Typing into the Index on touch devices: focusing this shows the soft keyboard. -->
+    <input
+      id="soft-keyboard"
+      type="text"
+      autocomplete="off"
+      autocapitalize="off"
+      autocorrect="off"
+      spellcheck="false"
+      enterkeyhint="go"
+      aria-label="Type a word for the Index"
+      tabindex="-1"
+    />
+    <p id="status" hidden>Loading…</p>
+
+    <button
+      id="settings-button"
+      type="button"
+      aria-label="Settings"
+      aria-haspopup="dialog"
+      aria-expanded="false"
+    >
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+        <!-- A plain gear: a ring and eight teeth (a dashed circle). -->
+        <circle cx="12" cy="12" r="5.5" fill="none" stroke="currentColor" stroke-width="3" />
+        <circle
+          cx="12"
+          cy="12"
+          r="8.2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3.2"
+          stroke-dasharray="3.2 3.24"
+        />
+      </svg>
+    </button>
+    <div id="settings-backdrop" hidden></div>
+    <div id="settings" role="dialog" aria-label="Settings" hidden>
+      <h2>Settings</h2>
+      <label class="row">
+        <input id="setting-fill" type="checkbox" />
+        <span>Fill the screen <small>(pixels a little uneven)</small></span>
+      </label>
+      <label class="row">
+        <span>Volume</span>
+        <input id="setting-volume" type="range" min="0" max="100" step="5" />
+      </label>
+      <button id="setting-fullscreen" type="button">Full screen</button>
+      <p id="fullscreen-hint" hidden>
+        For full screen, use Share → Add to Home Screen, then open it from there.
+      </p>
+      <!-- Phase 8 adds Print and Copy here. -->
+      <div id="settings-actions"></div>
+      <label class="row debug">
+        <input id="setting-debug" type="checkbox" />
+        <span>Show page info</span>
+      </label>
+      <button id="settings-done" type="button">Done</button>
+    </div>
+
+    <div id="rotate" hidden>
+      <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+        <g class="phone">
+          <rect
+            x="38"
+            y="16"
+            width="44"
+            height="88"
+            rx="7"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="5"
+          />
+          <circle cx="60" cy="94" r="3.5" fill="currentColor" />
+        </g>
+        <path
+          d="M100 42a44 44 0 0 1-8 46"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+        />
+        <path d="M84 86l9 3 2-10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+      </svg>
+      <p>Turn your device sideways</p>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
