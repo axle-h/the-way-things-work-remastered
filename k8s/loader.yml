@@ -1,0 +1,41 @@
+# The throwaway pod `sync-data.sh` rsyncs into: the one thing that mounts `data` read-write. Created
+# and deleted by the script; outside `twtw/` so `apply.sh` never starts it.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: data-loader
+  namespace: twtw
+  labels:
+    app: twtw-data-loader
+spec:
+  restartPolicy: Never
+  # `sleep` as PID 1 ignores SIGTERM, so a grace period only delays the delete.
+  terminationGracePeriodSeconds: 1
+  enableServiceLinks: false
+  automountServiceAccountToken: false
+  containers:
+    - name: loader
+      # Pinned by version and digest, as the Dockerfile's base images are.
+      image: alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+      # rsync is the receiving end of `rsync -e 'kubectl exec'`. Root, so it can write the volume
+      # whatever owns it; files land world-readable, and the server only reads.
+      command: ['/bin/sh', '-c', 'apk add --no-cache rsync && exec sleep infinity']
+      readinessProbe:
+        exec:
+          command: ['rsync', '--version']
+        periodSeconds: 2
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          # Dirty page cache counts against this. The largest disc file is a few MB, so this is
+          # plenty of headroom.
+          memory: 512Mi
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: data

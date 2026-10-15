@@ -1,0 +1,20 @@
+# The extracted disc (`vendor/cd`, with the `manifest.json` that `pnpm data` writes), copied in by
+# `../sync-data.sh` and mounted read-only by the server. It holds nothing that cannot be re-synced
+# from a local `vendor/cd`, so losing it costs a copy, not data.
+# `local-path` pins it to the one node and cannot expand a bound claim: raising `storage` means a
+# delete and a full re-sync. It does not enforce the size either, so this is a reservation, not a quota.
+# `vendor/cd` is 275M; the disc holds at most 650M.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+  namespace: twtw
+  labels:
+    app: twtw
+spec:
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

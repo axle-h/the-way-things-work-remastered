@@ -38,6 +38,7 @@ tools/data/              `pnpm data`: extract the ISO and write the data manifes
 tools/cleanroom/         `pnpm check:cleanroom`: rejects decompiler identifiers
 tools/ghidra/            Ghidra headless helpers
 tools/explore/           exploration scripts (NE resource dumper)
+k8s/                     k3s deployment: manifests, apply and data-sync scripts
 wine/                    run the original under Wine (with a palette fix)
 emu/                     run the original in DOSBox-X on MS-DOS 6.22 + Windows 3.1
 vendor/                  your disc image, extracted files, emulator disks  (gitignored)
@@ -66,6 +67,10 @@ pnpm build && pnpm serve   # production build, served at http://127.0.0.1:8080 (
 ```
 
 `$TWTW_CD` points the tools and servers at an extracted disc elsewhere; `$TWTW_ISO` picks the image when `vendor/` holds more than one.
+
+## Deployment
+
+The web app ships as a container image with no disc data in it: `Dockerfile`, built, checked and pushed to GHCR by `.github/workflows/container.yml`. On k3s the extracted disc lives on a volume, synced from `vendor/cd`. See [k8s/README.md](k8s/README.md).
 
 ## Running the original today
 

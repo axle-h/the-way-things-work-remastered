@@ -1,0 +1,32 @@
+# An allow-list: the build context is the workspace manifests and the source of the packages the web
+# app is built from, and nothing else. `vendor/` (the ISO, the extracted disc, emulator disks,
+# reference captures), `analysis/` (decompiler output) and `.claude/` must never reach an image, so
+# they are never sent; neither is anything else that is not listed here.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!apps/web/
+!apps/server/
+!packages/engine/
+!packages/formats/
+
+# Host build outputs and dependencies. `apps/web/dist` is built in the image, never taken from the
+# host, where it could be from a different checkout.
+**/node_modules/
+**/dist/
+**/.vite/
+# Playwright output: screenshots and PDFs of disc content.
+**/test-results/
+**/playwright-report/
+# Safety net, should a disc file ever be copied into a source directory (as in .gitignore).
+**/*.[Dd][Ii][Bb]
+**/*.[Aa][Nn][Ii]
+**/*.[Ww][Aa][Vv]
+**/*.[Ii][Ss][Oo]
+**/[Tt][Ww][Tt][Ww].[Pp][Nn][Gg]
+**/manifest.json
+vendor/
+analysis/
+.claude/

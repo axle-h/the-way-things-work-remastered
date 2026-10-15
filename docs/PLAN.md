@@ -204,6 +204,7 @@ Status: **implemented** (2026-10-15). Copy puts a 2× PNG of the captioned pictu
 - **Done when:** copy works (or falls back gracefully) on desktop and tablet browsers, and printouts look good on A4 and Letter.
 
 ### Phase 9 — Deployment on k3s
+Status: **applied, waiting on Alex** (2026-10-15). Dockerfile (alpine runtime, uid 10001, read-only root, no disc data), `container.yml` (disc-data check, smoke test on an empty `/data`, GHCR push on main), `k8s/` manifests and scripts; data synced to the volume and every resource applied in namespace `twtw`. To finish: create the GitHub repo and push, make the GHCR package public, DNS for the host (then the certificate issues by itself).
 Model this on the Encarta project (`~/projects/encarta/k8s/`, `.github/workflows/container.yml`, `Dockerfile`); read those first.
 - **Image:** a `Dockerfile` building `apps/web` and `apps/server` into a small image that runs as non-root on a read-only root filesystem and serves `/data` from a mounted volume. A GitHub Actions workflow builds it on every push, smoke-tests it against an **empty** `/data` (health endpoint plus the SPA), and on `main` pushes to `ghcr.io/axle-h/…` tagged `latest` and with the commit. The image and CI contain no disc data.
 - **Manifests in `k8s/`:**

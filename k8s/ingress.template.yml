@@ -1,0 +1,30 @@
+# A template: `${TWTW_HOST}` is replaced by `apply.sh` with the public hostname, which is kept out of
+# git (from `$TWTW_HOST` or the gitignored `host.local`). Applied as it stands, it is rejected.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: twtw
+  namespace: twtw
+  labels:
+    app: twtw
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    # <namespace>-<middleware>@kubernetescrd, so this only resolves if the namespace really is `twtw`.
+    traefik.ingress.kubernetes.io/router.middlewares: twtw-redirect-http-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: '${TWTW_HOST}'
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: twtw
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - '${TWTW_HOST}'
+      secretName: twtw-tls

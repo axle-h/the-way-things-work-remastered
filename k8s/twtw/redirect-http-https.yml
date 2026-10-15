@@ -1,0 +1,11 @@
+# The ingress names this as `twtw-redirect-http-https@kubernetescrd`, which traefik resolves by
+# namespace, so it only works in `twtw`.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-http-https
+  namespace: twtw
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

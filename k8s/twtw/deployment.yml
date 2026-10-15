@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twtw
+  namespace: twtw
+  labels:
+    app: twtw
+spec:
+  replicas: 1
+  # Recreate, since the `local-path` volume is ReadWriteOnce and a rollout has nothing to gain from
+  # two pods: the server is stateless, and a restart takes a second.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: twtw
+  template:
+    metadata:
+      labels:
+        app: twtw
+    spec:
+      # Otherwise Kubernetes injects `TWTW_PORT=tcp://…` and friends for the `twtw` Service, into the
+      # same `TWTW_` namespace the server reads its configuration from.
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data
+            readOnly: true
+        # The root filesystem is read-only; this is somewhere to write if node insists.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+      containers:
+        - name: twtw
+          image: ghcr.io/axle-h/the-way-things-work-remastered:latest
+          imagePullPolicy: Always
+          # The image's defaults, spelled out so the mount below and the server agree.
+          env:
+            - name: TWTW_CD
+              value: /data
+            - name: TWTW_DIST
+              value: /app/web
+            - name: HOST
+              value: 0.0.0.0
+            - name: PORT
+              value: '8080'
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              # No CPU limit: a CFS quota shows up as slow pages, not as a resource error. The server
+              # streams files from the volume and holds none of them in memory.
+              memory: 256Mi
+          # `/healthz` answers as soon as the server listens; it does not need the data.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 3
+          # Lets traefik drop the pod from its endpoints before it stops accepting connections.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 3

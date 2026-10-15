@@ -1,0 +1,122 @@
+# Builds the image from a bare checkout, checks that it holds no disc data, smoke-tests the running
+# container against an empty data directory, and on main pushes it to ghcr.io for `k8s/` to pull. No
+# disc data is involved at any point: it is DK's material and is never in git, in CI or in the image.
+name: container
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same ref makes the older build irrelevant.
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Lets GITHUB_TOKEN push to ghcr.io whatever the repository default; making the package public is a
+  # one-off in its settings (see `k8s/README.md`).
+  packages: write
+
+# The image `k8s/twtw/deployment.yml` pulls.
+env:
+  IMAGE: ghcr.io/axle-h/the-way-things-work-remastered
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A `docker-container` builder, which the GHA cache requires.
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Work out what we are building
+        id: build_info
+        env:
+          REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          {
+            echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "revision=$REVISION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build the image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true # into the runner's docker, so the steps below can inspect and run it
+          tags: twtw:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Consumed in the last stage only, so they never invalidate the build stage.
+          build-args: |
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+            GIT_REVISION=${{ steps.build_info.outputs.revision }}
+            BUILD_DATE=${{ steps.build_info.outputs.date }}
+
+      # Disc file names, anything in /data, a data manifest, or a large file all fail the build.
+      - name: The image holds no disc data
+        run: .github/scripts/check-image-has-no-disc-data.sh twtw:ci
+
+      - name: Image size
+        run: docker image ls twtw:ci --format '{{.Repository}}:{{.Tag}} {{.Size}}'
+
+      # An empty, read-only /data, as a fresh volume would be, and the restrictions `k8s/` runs it
+      # under: the server must come up without data.
+      - name: Start the container
+        run: |
+          mkdir -p ci-data
+          docker run -d --name twtw-ci -p 127.0.0.1:8080:8080 \
+            --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+            -v "$PWD/ci-data:/data:ro" twtw:ci
+
+      - name: It serves /healthz, the web app, robots.txt and the noindex header
+        run: .github/scripts/smoke-test.sh http://127.0.0.1:8080
+
+      # Publish: runs only after the checks passed, and only on main, since a fork PR's token is
+      # read-only whatever `permissions:` asks for.
+      - name: Log in to ghcr.io
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        # Through the environment, since `${{ }}` in `run:` is substituted into the script text.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      # Pushes the exact image the checks ran. `latest` is what `k8s/` pulls; the commit tag is the one
+      # to pin or roll back to.
+      - name: Push it
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          docker tag twtw:ci "$IMAGE:latest"
+          docker tag twtw:ci "$IMAGE:$GITHUB_SHA"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:$GITHUB_SHA"
+          echo "### Pushed \`$IMAGE:$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo '```shell' >> "$GITHUB_STEP_SUMMARY"
+          echo "kubectl -n twtw set image deploy/twtw twtw=$IMAGE:$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log out of ghcr.io
+        if: always()
+        run: docker logout ghcr.io >/dev/null 2>&1 || true
+
+      - name: Container logs
+        if: always()
+        run: docker logs twtw-ci 2>&1 | tail -100 || true
+
+      - name: Stop it
+        if: always()
+        run: docker rm -f twtw-ci >/dev/null 2>&1 || true
