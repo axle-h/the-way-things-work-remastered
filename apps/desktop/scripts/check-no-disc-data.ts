@@ -84,11 +84,13 @@ async function scanDirectory(base: string, directory: string, report: Report): P
 function scanAsar(archive: string, name: string, report: Report): void {
   let total = 0;
   for (const member of listPackage(archive, { isPack: false })) {
-    const inner = member.replace(/\\/g, '/').replace(/^\//, '');
-    const stat = statFile(archive, inner, false) as { files?: unknown; link?: unknown; unpacked?: boolean };
+    // asar lists and looks up members with the platform's separator (`\` on Windows).
+    const native = member.replace(/^[\\/]/, '');
+    const inner = native.split(sep).join('/');
+    const stat = statFile(archive, native, false) as { files?: unknown; link?: unknown; unpacked?: boolean };
     if (stat.files !== undefined || stat.link !== undefined) continue;
     // Unpacked members live beside the archive, in app.asar.unpacked, and are scanned there.
-    const bytes = stat.unpacked === true ? new Uint8Array(0) : extractFile(archive, inner);
+    const bytes = stat.unpacked === true ? new Uint8Array(0) : extractFile(archive, native);
     total += bytes.length;
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     check(
