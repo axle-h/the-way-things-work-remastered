@@ -58,6 +58,7 @@ pnpm install       # dependencies (CI uses --frozen-lockfile)
 pnpm data          # extract the ISO to vendor/cd if needed, write vendor/cd/manifest.json
 pnpm dev           # dev server at http://localhost:5173, with /data served from vendor/cd
 pnpm test          # all unit tests; corpus tests read vendor/cd (or $TWTW_CD) and skip without it
+pnpm test:devices  # Playwright device checks (Chromium, viewports and DPRs; apps/web/README.md); skip without the disc
 pnpm lint          # ESLint and the clean-room identifier check
 pnpm typecheck
 pnpm format        # Prettier

@@ -2,19 +2,29 @@
 // for mouse, touch and pen, a tap or click acting on release; the browser's own gestures (double-tap
 // zoom, pinch, long-press menu) are kept off the stage.
 import { DoubleClickDetector, type Engine } from '@twtw/engine';
+import type { StagePoint } from './stage.ts';
 
 /** Converts a pointer event's client position to framebuffer coordinates (the one place, stage.ts). */
-export type ToFramebuffer = (clientX: number, clientY: number) => { x: number; y: number };
+export type ToFramebuffer = (clientX: number, clientY: number) => StagePoint;
+
+export interface InputOptions {
+  /** After a touch or pen release, inside its event handler (the Index's soft keyboard). */
+  readonly afterTouchRelease?: () => void;
+  /** Whether a key goes to the engine; keys for the settings menu do not. */
+  readonly acceptKey?: (event: KeyboardEvent) => boolean;
+}
 
 /**
  * Forwards input on `canvas` to the engine. Only the primary pointer counts, so a second finger
- * does nothing. Mouse double clicks are treated as the original does (the second click is ignored,
- * behaviour.md §1.7); taps never make a double click. Returns a function that detaches everything.
+ * does nothing. Presses outside the presented area (the letterbox) are ignored. Mouse double
+ * clicks are treated as the original does (the second click is ignored, behaviour.md §1.7); taps
+ * never make a double click. Returns a function that detaches everything.
  */
 export function attachInput(
   canvas: HTMLCanvasElement,
   engine: Engine,
   toFramebuffer: ToFramebuffer,
+  options: InputOptions = {},
 ): () => void {
   const doubleClicks = new DoubleClickDetector();
   let active: number | null = null;
@@ -23,9 +33,10 @@ export function attachInput(
   const down = (event: PointerEvent): void => {
     if (!event.isPrimary || event.button !== 0) return;
     event.preventDefault();
+    const { x, y, inside } = point(event);
+    if (!inside) return;
     active = event.pointerId;
     canvas.setPointerCapture(event.pointerId);
-    const { x, y } = point(event);
     let doubleClick = false;
     if (event.pointerType === 'mouse') doubleClick = doubleClicks.press(x, y, event.timeStamp);
     else doubleClicks.reset();
@@ -43,6 +54,7 @@ export function attachInput(
     active = null;
     const { x, y } = point(event);
     void engine.pointerUp(x, y);
+    if (event.pointerType !== 'mouse') options.afterTouchRelease?.();
   };
   const cancel = (event: PointerEvent): void => {
     if (event.pointerId !== active) return;
@@ -55,6 +67,7 @@ export function attachInput(
   };
   const prevent = (event: Event): void => event.preventDefault();
   const key = (event: KeyboardEvent): void => {
+    if (options.acceptKey?.(event) === false) return;
     const input = {
       key: event.key,
       altKey: event.altKey,

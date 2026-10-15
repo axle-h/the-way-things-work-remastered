@@ -110,6 +110,21 @@ describe('the Index page (special-screens.md §1)', () => {
     expect(engine.cursor).toBe('arrow');
   });
 
+  it('takes text from a soft keyboard only while its edit box has the focus (§1.12)', async () => {
+    expect(engine.indexEditFocused).toBe(false);
+    expect(engine.setIndexEditText('x')).toBe(false);
+    await click(navButton(6));
+    expect(engine.indexEditFocused).toBe(true);
+    const name = SPECIAL_INDEX_NAMES[1]!;
+    expect(engine.setIndexEditText(name)).toBe(true);
+    expect([engine.indexScreen!.editText, engine.indexScreen!.selection]).toEqual([name, 1]);
+    await click(row(3));
+    expect(engine.indexEditFocused).toBe(false);
+    expect(engine.setIndexEditText('x')).toBe(false);
+    await click(control('edit'), { touch: true });
+    expect(engine.indexEditFocused).toBe(true);
+  });
+
   it('goes with Enter to the target page, then opens its companion pages, and closes', async () => {
     await click(navButton(6));
     key('ArrowDown'); // entry 1: art1, companions label0 and label1

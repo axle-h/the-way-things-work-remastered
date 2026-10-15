@@ -28,5 +28,6 @@ export * from './special/scroll.ts';
 export * from './special/index-screen.ts';
 export * from './special/copy-image.ts';
 export * from './special/coverage.ts';
+export * from './prefetch.ts';
 export * from './engine.ts';
 export type { PageRef } from '@twtw/formats';

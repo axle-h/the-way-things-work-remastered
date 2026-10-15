@@ -136,6 +136,31 @@ describe('typing in the edit box (§1.8)', () => {
     expect(screen.editText.length).toBeGreaterThan(20);
   });
 
+  it('takes a whole new text from a soft keyboard as typing would (§1.12)', () => {
+    const screen = new IndexScreen(NAMES);
+    expect(screen.setEditText('air', (time += 10))).toBe(true);
+    expect(state(screen)).toMatchObject({ selection: 2, remembered: 2, edit: 'air' });
+    expect(screen.editSelection).toEqual([3, 3]);
+    // Characters the edit box cannot hold are dropped; the caret can be placed.
+    expect(screen.setEditText('ai\u{1F600}rs\n', (time += 10), 1)).toBe(true);
+    expect(state(screen)).toMatchObject({ selection: 4, edit: 'airs' });
+    expect(screen.editSelection).toEqual([1, 1]);
+    // Too long for the box: refused, the text stays.
+    expect(screen.setEditText('W'.repeat(100), (time += 10))).toBe(false);
+    expect(screen.editText).toBe('airs');
+    // Emptied: entry 0, as for Backspace.
+    expect(screen.setEditText('', (time += 10))).toBe(true);
+    expect(state(screen)).toMatchObject({ selection: 0, edit: '' });
+  });
+
+  it('takes no soft keyboard text while the list has the focus', () => {
+    const screen = new IndexScreen(NAMES);
+    key(screen, 'Tab');
+    expect(screen.focus).toBe('list');
+    expect(screen.setEditText('bell', (time += 10))).toBe(false);
+    expect(screen.editText).toBe('A. Example');
+  });
+
   it('ignores keys meant for the browser and does not type without the Index window focused', () => {
     const screen = new IndexScreen(NAMES);
     expect(screen.key({ key: 'r', ctrlKey: true, time: 0 }, true).used).toBe(false);
