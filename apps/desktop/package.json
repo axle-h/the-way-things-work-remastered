@@ -1,7 +1,7 @@
 {
   "name": "@twtw/desktop",
   "productName": "The Way Things Work",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The Way Things Work desktop app: Electron around the web build, reading your own disc image.",
   "private": true,
   "type": "module",
