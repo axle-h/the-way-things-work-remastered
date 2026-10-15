@@ -161,7 +161,7 @@ Status: **done** (2026-10-14). `pnpm refcapture` (`tools/refcapture/README.md`) 
 - **Done when:** references exist for the title, the Workshop, the A–Z machine, the A–Z list for "A", the Airplane article and one Airplane popup. Then aim for every base page.
 
 ### Phase 3 — Static rendering
-Status: **done** (2026-10-14). `pnpm compare` (`tools/compare`) replays every capture headlessly and diffs it: 351 of 400 match exactly in the 634×454 area Wine paints, and the other 49 differ only for stated reasons (Wine's animation stall, playing movies, the A–Z lamp, Wine caption colours, transition leftovers). Windows 3.1 popup chrome is still unverified (no DOSBox-X captures yet).
+Status: **done** (2026-10-14). `pnpm compare` (`tools/compare`) replays every capture headlessly and diffs it: 351 of 400 match exactly in the 634×454 area Wine paints, and the other 49 differ only for stated reasons (Wine's animation stall, playing movies, the A–Z lamp, Wine caption colours, transition leftovers). Windows 3.1 popup chrome is still unverified (no DOSBox-X captures yet). Since 2026-10-15 the captures cover the full 638×459 client (refcapture sets `WM_STATE`; sidecars record `wineClient`).
 - `DataSource` interface + HTTP implementation. Engine: load the database; instantiate a page with its template and panels (navigation bar and frame via shared panels); draw Bitmap objects; compose popups at their origin. Present at a fixed 1× for now.
 - `tools/compare` headless renderer and HTML diff report.
 - **Done when:** the Phase 2 reference set matches pixel-exactly, or the residual differences are explained.
@@ -180,6 +180,7 @@ Status: **done** (2026-10-14). `pnpm compare` (`tools/compare`) replays every ca
 - **Done when:** the title animation, Airplane animations and Workshop sounds play in sync, and the playtest checklist passes.
 
 ### Phase 6 — Special screens and the long tail
+Status: **done** (2026-10-15). `pnpm compare` over all 1473 reference captures (397 base pages, every popup opener, nav-button paths): 362 exact, 1111 explained, 0 unexplained. Reasons: Wine caption colours, popups whose picture Wine lost (`wineWhitePopup`), playing movies, the animation stall, the A–Z lamp, Index text and transition leftovers. Every type is implemented or consciously dropped (`special-screens.md` §8). Found along the way: a caption redrawn after the picture leaves its bottom border on the picture's first row (the Index; a popup's caption turning inactive); Wine's inactive caption is `808080`.
 - A–Z machine (AZDial panel, AZ hotspots), the Index page (list box of the A–Z index; the original uses "MS Serif", so approximate with a canvas or bitmap font and accept a tolerance), WordBox, the custom scroll bar (must also work by touch drag), CancelButton, product options 1–3 (Options screen), the one SendMessage use (181, 59), Help pages, and transitions (`zoom`, `wipeleft`, `wiperight`) if used.
 - **Done when:** a full crawl comparison shows no unexplained diffs, and every action and object type is implemented or consciously dropped (noted in the spec).
 

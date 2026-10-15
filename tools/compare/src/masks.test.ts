@@ -1,4 +1,4 @@
-import { DIAL_POSITIONS, Engine, stalledAutostartMedia } from '@twtw/engine';
+import { DIAL_POSITIONS, Engine, stalledAutostartMedia, windowSize } from '@twtw/engine';
 import { describe, expect, it } from 'vitest';
 import type { Mask } from './diff.ts';
 import { animationCatalog, deriveMasks, type MaskInput } from './masks.ts';
@@ -54,6 +54,27 @@ describe('deriveMasks', () => {
     const caption = masks.find((mask) => mask.reason === 'wineCaptionColour');
     expect(caption?.rect).toEqual(rect(window.x, window.y, window.x + 60, window.y + 8));
     expect(caption?.referenceColours).toEqual([0x9e9e9e, 0x3296fa]);
+  });
+
+  it('masks the white area of a popup whose picture Wine lost, matched by its window rectangle', async () => {
+    await showState(engine, { base: ref('article'), popups: [ref('popup')] });
+    const window = engine.windows[0]!;
+    const { width, height } = windowSize(window);
+    const white = rect(window.x, window.y, window.x + width, window.y + height);
+    const masks = await masksFor({ base: ref('article'), popups: [ref('popup')] }, { whitePopups: [white] });
+    const mask = masks.find((m) => m.reason === 'wineWhitePopup');
+    // Window rows 4 to the shadow, across the picture: caption rows 0–3 and the shadow stay compared.
+    expect(mask?.rect).toEqual(
+      rect(window.x, window.y + 4, window.x + window.page.width, window.y + 8 + window.page.height),
+    );
+    expect(mask?.referenceColours).toEqual([0xffffff]);
+    // A window that is not ours (another place or size) masks nothing.
+    const elsewhere = { ...white, left: white.left + 1, right: white.right + 1 };
+    const none = await masksFor(
+      { base: ref('article'), popups: [ref('popup')] },
+      { whitePopups: [elsewhere] },
+    );
+    expect(none.some((m) => m.reason === 'wineWhitePopup')).toBe(false);
   });
 
   it("masks only the Index page's edit box and list, where our font differs", async () => {

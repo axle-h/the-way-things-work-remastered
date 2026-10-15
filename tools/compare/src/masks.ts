@@ -22,6 +22,7 @@ import {
   DIAL_POSITIONS,
   INDEX_CONTROLS,
   WINE,
+  windowSize,
   type DataSource,
   type PageInstance,
   type PageWindow,
@@ -29,7 +30,10 @@ import {
 } from '@twtw/engine';
 import type { Mask } from './diff.ts';
 
-/** The part of the client Wine paints (rendering.md §10, reference-environments.md). */
+/**
+ * Wine's client size before refcapture resized the window: captures made before that fix are
+ * black beyond it (rendering.md §10, reference-environments.md "Client area size").
+ */
 export const WINE_VISIBLE = { width: 634, height: 454 } as const;
 
 /** What is on screen, as the engine has it, plus what the capture says about it. */
@@ -41,7 +45,10 @@ export interface MaskInput {
   readonly windows: readonly PageWindow[];
   /** The reference image's size. */
   readonly referenceSize: { readonly width: number; readonly height: number };
-  /** The part of the reference the program painted: Wine's client (default 634×454). */
+  /**
+   * The part of the reference the program painted: Wine's client at capture time (the sidecar's
+   * `wineClient`), or 634×454 for captures that do not record it.
+   */
   readonly painted?: { readonly width: number; readonly height: number };
   /**
    * The page should have moved on by itself (autostart animation, then a `finished` ChangePage)
@@ -52,6 +59,30 @@ export interface MaskInput {
   readonly arrivedFrom: readonly PageInstance[];
   /** Where the reference was still changing at capture time (sidecar), when it cycled. */
   readonly changing: Rect | null;
+  /**
+   * The X windows, in page coordinates, of the popups whose picture Wine lost (sidecar
+   * `whitePopups`); each is matched to the engine's window with the same rectangle.
+   */
+  readonly whitePopups?: readonly Rect[];
+}
+
+/**
+ * The first window row Wine leaves white in a popup whose picture it lost: caption rows 0–3 and
+ * the shadow are drawn, the rest is white (reference-environments.md, "Popups that stay white").
+ */
+export const WINE_WHITE_POPUP_TOP = 4;
+
+/** The engine's window whose full rectangle, caption and shadow included, is `rect`. */
+export function windowWithRect(windows: readonly PageWindow[], rect: Rect): PageWindow | undefined {
+  return windows.find((window) => {
+    const { width, height } = windowSize(window);
+    return (
+      window.x === rect.left &&
+      window.y === rect.top &&
+      window.x + width === rect.right &&
+      window.y + height === rect.bottom
+    );
+  });
 }
 
 /** For each pixel of `rect` (page coordinates), the palette indices some frame paints there. */
@@ -178,7 +209,7 @@ export async function deriveMasks(input: MaskInput, animations: AnimationCatalog
     });
   };
 
-  // Wine leaves the client strips beyond its own client black.
+  // In captures made before the resize worked, the strips beyond Wine's client stayed black.
   const { width, height } = input.referenceSize;
   const painted = input.painted ?? WINE_VISIBLE;
   const black = [0x000000];
@@ -212,6 +243,23 @@ export async function deriveMasks(input: MaskInput, animations: AnimationCatalog
       },
       detail: `caption strip of popup ${window.page.ref} where the reference shows Wine's colours`,
       referenceColours: [rgbValue(WINE.frameColour), rgbValue(WINE.activeCaptionColour)],
+    });
+  }
+
+  // Popups whose picture Wine lost: white from window row 4 to the shadow, across the picture.
+  for (const rect of input.whitePopups ?? []) {
+    const window = windowWithRect(input.windows, rect);
+    if (window === undefined) continue;
+    masks.push({
+      reason: 'wineWhitePopup',
+      rect: {
+        left: window.x,
+        top: window.y + WINE_WHITE_POPUP_TOP,
+        right: window.x + window.page.width,
+        bottom: window.y + window.caption + window.page.height,
+      },
+      detail: `popup ${window.page.ref}, whose picture Wine lost, where the reference is white`,
+      referenceColours: [0xffffff],
     });
   }
 

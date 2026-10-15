@@ -102,6 +102,14 @@ describe('the Index page (special-screens.md §1)', () => {
     expect(pixel(fb, inWindow(index(), 5, 5))).toBe(SPECIAL_PICTURE.index);
   });
 
+  it("shows its redrawn caption's bottom border on the picture's first row, from x 11", async () => {
+    await click(navButton(6));
+    const fb = render();
+    expect(pixel(fb, inWindow(index(), 10, 0))).toBe(SPECIAL_PICTURE.index);
+    for (const x of [11, 200, 362]) expect(pixel(fb, inWindow(index(), x, 0))).toBe(StaticColour.black);
+    expect(pixel(fb, inWindow(index(), 200, 1))).toBe(SPECIAL_PICTURE.index);
+  });
+
   it('shows the I-beam over the edit box and the arrow over the list', async () => {
     await click(navButton(6));
     engine.pointerMove(...control('edit'));

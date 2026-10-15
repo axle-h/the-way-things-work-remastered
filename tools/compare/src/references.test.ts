@@ -2,7 +2,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { listReferences, matchesFilter, type Reference, type Sidecar } from './references.ts';
+import {
+  listReferences,
+  matchesFilter,
+  whitePopupRects,
+  type Reference,
+  type Sidecar,
+} from './references.ts';
 
 function reference(page: number, name: string, start = page): Reference {
   const sidecar = { image: `${name}.png`, actionPath: { start, steps: [] } } as unknown as Sidecar;
@@ -29,6 +35,28 @@ describe('matchesFilter', () => {
     expect(matchesFilter(path, '1188/path-1538_*')).toBe(true);
     expect(matchesFilter(path, '*/startup')).toBe(false);
     expect(matchesFilter(startup, '153?/startup')).toBe(true);
+  });
+});
+
+describe('whitePopupRects', () => {
+  const sidecar = (fields: Partial<Sidecar>): Sidecar => fields as Sidecar;
+  const clientRect = { x: 195, y: 195, width: 638, height: 459 };
+  const otherWindows = [
+    { id: 7, x: 451, y: 250, width: 359, height: 388 },
+    { id: 9, x: 300, y: 300, width: 185, height: 131 },
+  ];
+
+  it('maps the listed X window ids, not popup positions, to client rectangles', () => {
+    expect(whitePopupRects(sidecar({ clientRect, otherWindows, whitePopups: [9] }))).toEqual([
+      { left: 105, top: 105, right: 290, bottom: 236 },
+    ]);
+    expect(whitePopupRects(sidecar({ clientRect, otherWindows, whitePopups: [7, 9] }))).toHaveLength(2);
+  });
+
+  it('ignores ids of no window, and captures without the fields', () => {
+    expect(whitePopupRects(sidecar({ clientRect, otherWindows, whitePopups: [0, 1] }))).toEqual([]);
+    expect(whitePopupRects(sidecar({ clientRect, otherWindows }))).toEqual([]);
+    expect(whitePopupRects(sidecar({ otherWindows, whitePopups: [7] }))).toEqual([]);
   });
 });
 

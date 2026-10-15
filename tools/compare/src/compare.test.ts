@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createFramebuffer, type Engine } from '@twtw/engine';
+import { createFramebuffer, windowSize, type Engine } from '@twtw/engine';
 import { encodeRgbPng, indexedToRgb, type RgbImage } from '@twtw/node';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Comparator, totals, unpaintedStrips } from './compare.ts';
@@ -125,6 +125,45 @@ describe('Comparator', () => {
       byReason: { wineCaptionColour: 47 },
     });
     expect(result.steps).toEqual([`${ref('article')}:1:1`]);
+  });
+
+  it('explains the white area of a popup Wine lost, by its X window, and keeps the rest compared', async () => {
+    const state = { base: ref('article'), popups: [ref('popup')] };
+    const image = await rendering(state);
+    const window = engine.windows[0]!;
+    const { width, height } = windowSize(window);
+    const whiteArea = { width: window.page.width, height: window.caption + window.page.height - 4 };
+    for (let y = window.y + 4; y < window.y + 4 + whiteArea.height; y++) {
+      for (let x = window.x; x < window.x + whiteArea.width; x++) setPixel(image, x, y, 0xffffff);
+    }
+    const sidecar = (whitePopups: number[]) => ({
+      page: ref('popup'),
+      pageType: 'popup',
+      kind: 'path' as const,
+      actionPath: {
+        start: ref('article'),
+        steps: [step(ref('article'), 1, { kind: 'openPage', page: ref('popup') }, ...ARTICLE_HOTSPOT)],
+      },
+      expectedState: state,
+      clientRect: { x: 195, y: 195, width: 638, height: 459 },
+      otherWindows: [
+        { id: 3, x: 0, y: 0, width: 10, height: 10 },
+        { id: 4, x: 195 + window.x, y: 195 + window.y, width, height },
+      ],
+      whitePopups,
+    });
+    const differing = (await comparator.compare(capture(image, sidecar([4])))).result;
+    expect(differing.differing).toBeGreaterThan(0);
+    expect(differing.byReason).toEqual({ wineWhitePopup: differing.differing });
+    expect(differing).toMatchObject({ status: 'explained', notes: [] });
+    // Listed by another window's id, nothing is explained.
+    const other = (await comparator.compare(capture(image, sidecar([3])))).result;
+    expect(other).toMatchObject({ status: 'unexplained', unexplained: differing.differing });
+    // Caption rows 0–3 and the shadow stay compared.
+    setPixel(image, window.x + 20, window.y + 2, 0xffffff);
+    setPixel(image, window.x + width - 2, window.y + 10, 0x123456);
+    const caption = (await comparator.compare(capture(image, sidecar([4])))).result;
+    expect(caption).toMatchObject({ status: 'unexplained', unexplained: 2 });
   });
 
   it('closes the popup when a click in it changes the base page', async () => {

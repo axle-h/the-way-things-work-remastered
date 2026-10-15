@@ -46,6 +46,7 @@ import { IndexedCanvas, intersect, type Box } from './render/canvas.ts';
 import { invertFocusRect } from './render/focus-rect.ts';
 import { paintPage } from './render/paint.ts';
 import {
+  CAPTION_RECT_LEFT,
   captionColours,
   drawWindow,
   PRESENTATIONS,
@@ -171,6 +172,7 @@ class Popup implements PageWindow {
   zoomFrom: Point | null = null;
   /** The Index page's controls, while the window shows the Index (special-screens.md §1). */
   index: IndexScreen | null = null;
+  captionLine: Uint8Array | null = null;
 
   constructor(
     page: PageInstance,
@@ -546,7 +548,11 @@ export class Engine {
       this.media.stopAll();
       this.#cancelNavWait?.();
     }
-    if (this.#appActive !== active) this.#dirty = true;
+    if (this.#appActive !== active) {
+      this.#dirty = true;
+      // The focus popup's caption changes colour: the program draws it again (rendering.md §7.3).
+      if (this.#focus !== null) this.#redrawCaption(this.#focus);
+    }
     this.#appActive = active;
   }
 
@@ -798,7 +804,12 @@ export class Engine {
     if (hit === null) return;
     const window = hit.window as Popup | null;
     this.#lastPress = window === null ? { window, x, y } : { window, x: x - window.x, y: y - window.y };
-    if (window !== null) this.#raise(window);
+    if (window !== null) {
+      // The press focuses the window, and redraws captions, before Windows repaints what raising
+      // the window uncovers (rendering.md §7.3).
+      if (hit.area !== 'client' || window.focusable) this.#setFocus(window);
+      this.#raise(window);
+    }
 
     switch (hit.area) {
       case 'systemBox':
@@ -1271,8 +1282,8 @@ export class Engine {
     const control = window.index.controlAt(point.x, point.y);
     if (control === null) return null;
     this.#ignoreRelease = false;
-    this.#raise(window);
     this.#setFocus(window);
+    this.#raise(window);
     const command = window.index.press(control, { ...point, time: this.clock.now(), touch, doubleClick });
     this.#dirty = true;
     if (command !== null) {
@@ -1441,8 +1452,10 @@ export class Engine {
         window.y = position.y;
         this.#expose(before, this.#below(window));
       }
-      // The zoom flag belonged to the page opened in the window.
+      // The zoom flag belonged to the page opened in the window. The new picture covers the line
+      // a redrawn caption left (rendering.md §7.3).
       window.zoomFrom = null;
+      window.captionLine = null;
       window.index = instance.page.pageType === 'index' ? this.#newIndexScreen() : null;
     }
     this.#active = window;
@@ -1479,9 +1492,13 @@ export class Engine {
     this.media.pageOpened?.(instance);
     this.#popups.push(popup);
     this.#active = popup;
-    if (popup.focusable) this.#setFocus(popup);
+    // Its caption is drawn before its first paint; the previous focus popup's is drawn again.
+    if (popup.focusable) this.#setFocus(popup, true);
     this.#dirty = true;
     this.#pageOpened(instance, popup, true);
+    // After its first paint the Index creates its controls and focuses the edit box, and its
+    // caption is drawn again over the picture (special-screens.md §1.1).
+    if (type === 'index') this.#redrawCaption(popup);
     return true;
   }
 
@@ -1505,17 +1522,18 @@ export class Engine {
     await this.#closeWindows(this.#ownedBy(popup));
     const at = this.#popups.indexOf(popup);
     if (at < 0) return false;
+    if (popup.focusable) {
+      // The focus goes back while the window is still there; then what it covered is repainted.
+      const back = popup.opener === null || this.#popups.includes(popup.opener) ? popup.opener : null;
+      this.#setFocus(back);
+      this.#active = back;
+    }
     const below = this.#below(popup);
     this.#popups.splice(at, 1);
     this.#expose(this.#windowBox(popup), below);
     const press = this.#press;
     if (press !== null && ('target' in press ? press.target.window : press.window) === popup)
       this.#endPress();
-    if (popup.focusable) {
-      const back = popup.opener === null || this.#popups.includes(popup.opener) ? popup.opener : null;
-      this.#focus = back;
-      this.#active = back;
-    }
     if (this.#focus === popup) this.#focus = null;
     if (this.#active === popup) this.#active = null;
     this.media.pageClosed(popup.page);
@@ -1642,6 +1660,15 @@ export class Engine {
     for (const window of windows) {
       const page = window === null ? this.#base : window.page;
       if (page === null) continue;
+      const line = window?.captionLine ?? null;
+      if (window !== null && line !== null) {
+        // The repainted picture covers the line a redrawn caption left (rendering.md §7.3).
+        const y = window.y + window.caption;
+        if (y >= rect.top && y < rect.bottom) {
+          line.fill(0, Math.max(0, rect.left - window.x), Math.max(0, rect.right - window.x));
+          this.#dirty = true;
+        }
+      }
       const originX = window?.x ?? 0;
       const originY = window === null ? 0 : window.y + window.caption;
       for (const panel of page.panels) {
@@ -1688,9 +1715,32 @@ export class Engine {
     return this.#base === page || this.#popups.some((popup) => popup.page === page);
   }
 
-  #setFocus(window: Popup | null): void {
+  /**
+   * Moves the keyboard focus. Both captions change colour, and the program draws them again over
+   * the pictures (rendering.md §7.3), except the caption of a window `opening`, drawn before its
+   * first paint.
+   */
+  #setFocus(window: Popup | null, opening = false): void {
     if (this.#focus === window) return;
+    const previous = this.#focus;
     this.#focus = window;
+    if (previous !== null) this.#redrawCaption(previous);
+    if (window !== null && !opening) this.#redrawCaption(window);
+    this.#dirty = true;
+  }
+
+  /**
+   * The program draws an open window's caption again, picture row 0 included, without repainting
+   * the picture (rendering.md §7.3): the rectangle's black bottom border shows from window x 11 to
+   * the picture's last column, wherever no other window covers it.
+   */
+  #redrawCaption(window: Popup): void {
+    if (window.caption === 0 || !this.#popups.includes(window)) return;
+    const y = window.y + window.caption;
+    for (let column = CAPTION_RECT_LEFT; column < window.page.width; column++) {
+      if (this.#windowAt(window.x + column, y) !== window) continue;
+      (window.captionLine ??= new Uint8Array(window.page.width))[column] = 1;
+    }
     this.#dirty = true;
   }
 

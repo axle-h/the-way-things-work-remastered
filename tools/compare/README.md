@@ -27,8 +27,9 @@ Open `vendor/compare/index.html`: totals, the expected differences by reason, an
 
 | Reason | Where | Pixels it explains |
 |---|---|---|
-| `wineClientStrip` | columns 634–637, rows 454–458, unless the sidecar's `wineClient` covers them | black in the reference |
+| `wineClientStrip` | columns 634–637, rows 454–458, in captures made before refcapture set `WM_STATE` (no `wineClient` covering them) | black in the reference |
 | `wineCaptionColour` | each popup's 8-pixel caption strip | Wine's `9E9E9E` and `3296FA`, which the palette lacks (rendering.md §7.3) |
+| `wineWhitePopup` | each popup the sidecar lists in `whitePopups` (X window ids, matched to our windows by their rectangle): window row 4 down to the shadow, across the picture | white in the reference; caption rows 0–3 and the shadow stay compared (reference-environments.md, "Popups that stay white") |
 | `azLamp` | the A–Z dial's lamp | any (it blinks, rendering.md §6) |
 | `moviePlaying` | the AnimationControl strip addressed by a panel's on_open SENDMESSAGE, and its animation's frames | strip: any; frames: colours a frame paints there |
 | `wineAnimationStall` | autostart animations of a page that should have moved on | colours a frame of the animation paints there |

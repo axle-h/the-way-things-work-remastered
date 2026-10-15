@@ -8,9 +8,11 @@ import type { RgbImage } from '@twtw/node';
 /** Why a difference is expected. The descriptions are shown in the report. */
 export const REASONS = {
   wineClientStrip:
-    'Wine paints only 634×454 of the client; the rest of the 638×459 capture stays black (rendering.md §10)',
+    'a capture made before refcapture set WM_STATE: Wine\'s client was 634×454, so columns 634–637 and rows 454–458 stayed black (reference-environments.md, "Client area size")',
   wineCaptionColour:
     "Wine's caption colours (frame 9E9E9E, active 3296FA) are not in the palette (rendering.md §7.3, §10)",
+  wineWhitePopup:
+    'Wine lost the popup\'s picture: white from window row 4 down to the shadow, across the picture (sidecar whitePopups; reference-environments.md, "Popups that stay white")',
   azLamp: 'the A–Z machine lamp blinks once a second (rendering.md §6)',
   moviePlaying:
     "a Principles movie page: the panel's on_open SENDMESSAGE starts its AnimationControl (rendering.md §8)",

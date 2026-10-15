@@ -192,7 +192,13 @@ Colours on Windows 3.1 (default colour scheme) [H]:
 - caption, active (`COLOR_ACTIVECAPTION`): navy `000080`, index 4;
 - caption, inactive (`COLOR_INACTIVECAPTION`): white, index 255.
 
-The caption is active when the popup is the window with input focus and is enabled; other open popups are inactive. Opening a popup makes it the focus window and repaints the previous popup's caption as inactive [C]. Under Wine the frame colour is `9E9E9E` and the active caption `3296FA` [V].
+The caption is active when the popup is the window with input focus and is enabled; other open popups are inactive. Opening a popup makes it the focus window and repaints the previous popup's caption as inactive [C]. Under Wine the frame colour is `9E9E9E`, the active caption `3296FA` and the inactive caption `808080` (index 248) [V].
+
+**A caption redrawn over the picture** [V]: when the program draws a caption again after the window's picture has been painted, it draws the whole rectangle of item 1 again, bottom row 8 included, and does not repaint the picture. The picture's first row then shows that border: black from window x 11 to W − 1, while x 0–10 keep the picture (the system box ends at row 7). Only the columns where the window is visible at that moment are drawn [H]. Seen under Wine:
+- **The Index** (special-screens.md §1.1) shows the line every time it opens (both Wine captures: page row 51, x 191–542). After its first paint it creates its controls and gives the edit box the focus (special-screens.md §1.2, §1.5), and its caption is drawn again then; it stays active [V; that the focus change is the trigger is H].
+- **A popup opened from a popup**: the lower popup's caption is redrawn inactive and shows the line from then on (base page 3330 → popup 3760 → popup 109296, 2026-10-15: 3760's row 8 is `808080` inside the rectangle and black from x 11 to 180) [V].
+
+The same follows for every other caption redraw [H]: a press that moves the focus to another popup (both captions), the focus going back to the opener when a popup closes (behaviour.md §4.4), and the application losing or regaining activation (behaviour.md §10). A later repaint of the picture covers the line again where it repaints: a ChangePage in the window, or a part uncovered when a window above it closes, moves or is lowered [H]. A popup opened directly from the base page never shows it: its caption is drawn before its first paint.
 
 ### 7.4 Drop shadow
 - **Geometry** [C][V], in window coordinates, with total window size Wt×Ht and shadow width *s*:
@@ -268,15 +274,16 @@ The splash picture shown while the database loads is EXE bitmap 121 (640×480), 
 ## 10. What to confirm against captures
 
 For the comparison tool (`tools/compare`). Wine differences that are expected:
-- **Visible area:** Wine shows only 634×454 of the client (`program.md`). The reference captures are 638×459, but their columns 634–637 and rows 454–458 are black: compare only 634×454 [V].
+- **Visible area:** on its own, Wine gives the program only 634×454 of the client (`program.md`). `tools/refcapture` resizes the window to 638×459 so that the program paints the whole client area, and records Wine's client size in each sidecar (`wineClient`); captures with it are compared over all of 638×459 [V]. Older captures, made before that fix, are black in columns 634–637 and rows 454–458; for those, compare only 634×454 (`docs/reference-environments.md`, "Client area size").
 - **Popup position:** Wine places popups (−2, −3) from the Windows 3.1 position (7.2). Locate the popup's X window and compare it in its own frame, or render with the engine's `wine` presentation, which places popups and draws the shadow as Wine does.
 - **Caption colours:** Wine's frame and active caption colours differ (7.3). Neither `9E9E9E` nor `3296FA` is in the master palette, so an indexed rendering cannot show them: treat the caption pixels in those colours as expected differences [V].
 - **Shadow:** Wine's shadow is a stipple over white with the opposite parity, corners white too (7.4).
+- **Popups that stay white:** Wine loses the picture of a popup whose size crosses one of its 128-pixel surface steps when the program shrinks the window for the shadow (`docs/reference-environments.md`, "Popups that stay white"). Such a popup is white from window row 4 down to the shadow, and across the picture's width: the lower half of the caption strip and the whole picture. Caption rows 0–3 and the shadow are drawn as usual [V]. The sidecar lists these windows (`whitePopups`), and a comparison treats white reference pixels in that area as expected.
 - **Animations and lamp:** autostart animation areas and the A–Z lamp change over time (sections 6 and 8).
 
 To confirm in DOSBox-X (Windows 3.1):
 1. A popup's page position, (origin.x + 93, origin.y + 4) for the window.
-2. Caption colours: navy 000080 active, white inactive, black frame.
+2. Caption colours: navy 000080 active, white inactive, black frame; and the line a redrawn caption leaves on the picture's first row (7.3), on the Index as it opens.
 3. The shadow showing the base page through a checkerboard with (x + y) even black.
 4. Page column 633 on `\ARTICLE3\SUSP\` showing red (index 249).
 5. `WINW0M` index-2 pixels showing dark green.

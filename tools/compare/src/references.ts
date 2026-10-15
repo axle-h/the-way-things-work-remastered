@@ -19,6 +19,15 @@ export interface SidecarStep extends ClickStep {
   readonly effect: StepEffect;
 }
 
+/** A top-level X window as refcapture records it. */
+export interface XWindow {
+  readonly id: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface Sidecar {
   readonly page: PageRef;
   readonly pageType: string;
@@ -41,9 +50,34 @@ export interface Sidecar {
   readonly resizedFrom: { readonly width: number; readonly height: number } | null;
   /** The program's client size as Wine reported it (refcapture records it since the WM_STATE fix). */
   readonly wineClient?: { readonly width: number; readonly height: number } | null;
-  /** X windows (popups) whose picture Wine lost, so they show white (refcapture README). */
+  /** The main window's client area on the X screen. */
+  readonly clientRect?: Omit<XWindow, 'id'>;
+  /** Other top-level X windows at capture time (popups), in X screen coordinates. */
+  readonly otherWindows?: readonly XWindow[];
+  /**
+   * X window ids, as in `otherWindows`, of the popups whose picture Wine lost, so they show white
+   * (refcapture README). Not positions in `expectedState.popups`.
+   */
   readonly whitePopups?: readonly number[];
   readonly environment: { readonly kind: string; readonly palettePatch: boolean };
+}
+
+/**
+ * The rectangles, in page coordinates (client-relative), of the X windows the sidecar lists in
+ * `whitePopups`. Ids that name no window in `otherWindows` are left out.
+ */
+export function whitePopupRects(sidecar: Sidecar): Rect[] {
+  const ids = new Set(sidecar.whitePopups ?? []);
+  const client = sidecar.clientRect;
+  if (ids.size === 0 || client === undefined) return [];
+  return (sidecar.otherWindows ?? [])
+    .filter((window) => ids.has(window.id))
+    .map(({ x, y, width, height }) => ({
+      left: x - client.x,
+      top: y - client.y,
+      right: x - client.x + width,
+      bottom: y - client.y + height,
+    }));
 }
 
 export interface Reference {

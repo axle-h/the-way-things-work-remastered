@@ -130,7 +130,7 @@ Provenance: execute `1018:d956`, `1010:4ee6`, `1010:4fec`, popup open `1020:134c
 2. If any open window already shows this page, **do nothing**: the window is not raised and no zoom plays.
 3. Load the page and remember its effect flag (the action's `u16`: 0 none, 1 zoom).
 4. For a popup: compute its window rectangle (rendering.md §7.2). If the effect is zoom, play the opening zoom (§4.2). Then create the window, owned by the **active page's** window.
-5. The new popup becomes the active page. If it can take the focus, it becomes the focus page, the previous focus popup's caption is redrawn inactive, and it gets the keyboard focus. It remembers which page was active before it, for §4.4.
+5. The new popup becomes the active page. If it can take the focus, it becomes the focus page, the previous focus popup's caption is redrawn inactive (which leaves a line on that popup's picture, rendering.md §7.3), and it gets the keyboard focus. It remembers which page was active before it, for §4.4.
 6. Its first paint and open events follow (rendering.md §8).
 
 A page that is not a popup could only be "opened" by the two `OPENPAGE` actions that follow a `CHANGEPAGE` to the same base page (the A–Z machine). By then the page is open, so they do nothing (step 2).

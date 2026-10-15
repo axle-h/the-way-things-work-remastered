@@ -26,8 +26,14 @@ import {
   type Mask,
   type Reason,
 } from './diff.ts';
-import { animationCatalog, deriveMasks, WINE_VISIBLE, type AnimationCatalog } from './masks.ts';
-import type { Reference } from './references.ts';
+import {
+  animationCatalog,
+  deriveMasks,
+  WINE_VISIBLE,
+  windowWithRect,
+  type AnimationCatalog,
+} from './masks.ts';
+import { whitePopupRects, type Reference } from './references.ts';
 import { engineState, replayStep, sameState, showState, type ScreenState } from './state.ts';
 
 export type Status = 'exact' | 'explained' | 'unexplained' | 'error';
@@ -132,7 +138,7 @@ export class Comparator {
         ? referenceSize
         : WINE_VISIBLE;
     if (painted !== referenceSize && unpaintedStrips(image)) {
-      // Wine painted only its own 634×454 client (rendering.md §10): compare that part.
+      // An older capture: Wine painted only its own 634×454 client (rendering.md §10).
       area = { width: WINE_VISIBLE.width, height: WINE_VISIBLE.height };
       notes.push(
         `the reference is black beyond Wine's ${WINE_VISIBLE.width}×${WINE_VISIBLE.height}: compared that part only`,
@@ -164,8 +170,26 @@ export class Comparator {
         (sidecar.settle.cycleFrames ?? 1) > 1 && sidecar.settle.changingRect != null
           ? sidecar.settle.changingRect
           : null;
+      const whitePopups = whitePopupRects(sidecar);
+      for (const rect of whitePopups) {
+        if (windowWithRect(this.engine.windows, rect) === undefined) {
+          notes.push(
+            `the white popup window at (${rect.left}, ${rect.top}) ${rect.right - rect.left}×${rect.bottom - rect.top} matches no window of ours`,
+          );
+        }
+      }
       if (this.mode === 'settle')
-        return await this.#settled(image, area, referenceSize, painted, base, state, changing, notes);
+        return await this.#settled(
+          image,
+          area,
+          referenceSize,
+          painted,
+          base,
+          state,
+          changing,
+          whitePopups,
+          notes,
+        );
 
       // The page as replayed; when it should have moved on by itself, Wine's stall explains it.
       const stalls = sidecar.settledDiffersFromRequested;
@@ -176,6 +200,7 @@ export class Comparator {
           arrivedFrom: [],
           changing,
           painted,
+          whitePopups,
         }),
       ];
       if (stalls && sidecar.expectedSettledPage !== state.base) {
@@ -190,6 +215,7 @@ export class Comparator {
             arrivedFrom,
             changing,
             painted,
+            whitePopups,
           }),
         );
       }
@@ -208,6 +234,7 @@ export class Comparator {
           arrivedFrom: [],
           changing,
           painted,
+          whitePopups,
         });
         candidates.push(navStall);
       }
@@ -286,6 +313,7 @@ export class Comparator {
     base: Pick<CaptureResult, 'id' | 'page' | 'name' | 'kind' | 'directory' | 'start' | 'steps'>,
     replayed: ScreenState,
     changing: Rect | null,
+    whitePopups: readonly Rect[],
     notes: string[],
   ): Promise<CaptureComparison> {
     const passed: PageInstance[] = [];
@@ -300,6 +328,7 @@ export class Comparator {
       arrivedFrom: passed,
       changing,
       painted,
+      whitePopups,
     });
     const status: Status =
       diff.differing === 0 ? 'exact' : diff.unexplained === 0 ? 'explained' : 'unexplained';
@@ -339,6 +368,7 @@ export class Comparator {
       arrivedFrom: readonly PageInstance[];
       changing: Rect | null;
       painted: { width: number; height: number };
+      whitePopups: readonly Rect[];
     },
   ): Promise<Candidate> {
     const framebuffer = createFramebuffer();

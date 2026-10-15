@@ -179,6 +179,9 @@ const heap: HeapEntrySpec[] = [
         ],
       }),
   },
+  // Its window (140, 200) 54×28 covers columns 140–148 of row 212, the first picture row of
+  // popup's window at (119, 204).
+  { label: 'popupOver', page: () => popup({ x: 121, y: 196 }, 'popbig') },
 ];
 
 const product = (ref: RefOf): Product => ({
@@ -458,6 +461,47 @@ describe('Engine', () => {
       await engine.openPage(ref('popupWide'));
       engine.render(fb);
       expect(win(13, 1)).toBe(WHITE);
+    });
+
+    it("covers the caption rectangle's bottom row with the picture", () => {
+      expect([win(10, 8), win(11, 8), win(29, 8)]).toEqual([50, 51, 69]);
+    });
+
+    describe('a caption drawn again over the picture (rendering.md §7.3)', () => {
+      const line = (from: number, to: number): number[] =>
+        Array.from({ length: to - from + 1 }, (_, i) => win(from + i, 8));
+      const black = (count: number): number[] => new Array<number>(count).fill(0);
+      const picture = (from: number, to: number): number[] =>
+        Array.from({ length: to - from + 1 }, (_, i) => 40 + from + i);
+
+      it('leaves its bottom border on the first picture row when another popup opens', async () => {
+        await engine.openPage(ref('popupWide'));
+        engine.render(fb);
+        expect(line(10, 29)).toEqual([50, ...black(19)]);
+        // The new popup's own caption came before its picture.
+        expect(pixel(fb, 619 + 20, 404 + 8)).toBe(90);
+      });
+
+      it('only where no window covers it, and a repaint covers it again', async () => {
+        await engine.openPage(ref('popupOver'));
+        engine.render(fb);
+        expect(line(11, 20)).toEqual(black(10));
+        expect(win(25, 8)).toBe(90);
+        // Closing the window above gives the focus back and repaints what it covered.
+        await engine.closePage(ref('popupOver'));
+        engine.render(fb);
+        expect(line(10, 29)).toEqual([50, ...black(10), ...picture(21, 29)]);
+        // A ChangePage in the window paints a new picture.
+        await engine.changePage(ref('popupSameSize'));
+        engine.render(fb);
+        expect(line(10, 29)).toEqual(picture(10, 29));
+      });
+
+      it('when the application loses activation', () => {
+        engine.setActive(false);
+        engine.render(fb);
+        expect(line(10, 29)).toEqual([50, ...black(19)]);
+      });
     });
 
     it('clips windows that reach past the stage', async () => {

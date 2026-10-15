@@ -20,6 +20,7 @@ Coordinates are page coordinates under Windows 3.1 unless stated otherwise: page
 - Its window is built exactly like a popup's (rendering.md §7): template 617 has the reference panel (7, 1), the 8-pixel caption strip and a 4-pixel shadow. The page origin is (89, 42) and its one panel holds a single Bitmap, `INDE00` (363×360), so the window is 367×372 at page (182, 46) and the picture's top-left is page (182, 54) under Windows 3.1. Under Wine it is at (180, 51) (rendering.md §7.2) [C].
 - The picture is a parchment frame with "Type a word or select from list:", "Select from list:", an empty white box for the edit box, a larger white box for the list and scroll bar, and nothing where the two buttons go. The controls fill the white boxes (index 255) [V].
 - It behaves like any popup for the caption strip, the shadow, dragging, closing from its system box, and clicks on the base page closing it (behaviour.md §1.5, §5) [C].
+- One visible difference from a popup: its caption is drawn again after the first paint, when the controls are created and the edit box takes the focus, so the picture's first row shows the caption rectangle's black bottom border from window x 11 to 362 (rendering.md §7.3). Under Wine that is page row 51, x 191–542, in every Index capture [V].
 
 ### 1.2 The controls [C]
 Provenance: the Index window's own window procedure `1030:4b68`, set up after the window's first paint by `1030:49ee`.

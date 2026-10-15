@@ -57,10 +57,10 @@ export const WIN31: Presentation = {
  * Wine, as in the reference captures (rendering.md §7.2–7.4, §10): popups land (−2, −3) from the
  * Windows 3.1 position, and the shadow is a stipple over white with the opposite parity.
  *
- * Wine's caption colours (frame `9E9E9E`, active `3296FA`) are not in the palette, so they cannot
- * be drawn into an indexed framebuffer: the nearest entries stand in for them, and a comparison
- * must treat those pixels as expected differences. Wine's inactive caption colour is not known
- * (white is assumed).
+ * Wine's frame and active caption colours (`9E9E9E`, `3296FA`) are not in the palette, so they
+ * cannot be drawn into an indexed framebuffer: the nearest entries stand in for them, and a
+ * comparison must treat those pixels as expected differences. Its inactive caption colour,
+ * `808080`, is palette index 248.
  */
 export const WINE: Presentation = {
   name: 'wine',
@@ -70,7 +70,7 @@ export const WINE: Presentation = {
   captionHeight: 20,
   frameColour: rgb(0x9e9e9e),
   activeCaptionColour: rgb(0x3296fa),
-  inactiveCaptionColour: rgb(0xffffff),
+  inactiveCaptionColour: rgb(0x808080),
   shadowBackground: 'white',
   shadowBlackParity: 1,
 };
@@ -99,6 +99,9 @@ export function captionColours(presentation: Presentation, palette: Uint8Array):
 /** Height of the caption strip when the template asks for one. */
 export const CAPTION_STRIP_HEIGHT = 8;
 
+/** The caption rectangle's left edge in window coordinates; the system box is left of it. */
+export const CAPTION_RECT_LEFT = 11;
+
 /** A popup or index page in its own window. */
 export interface PageWindow {
   readonly page: PageInstance;
@@ -116,6 +119,11 @@ export interface PageWindow {
   readonly owner: PageWindow | null;
   /** Whether it takes the focus when it opens or is pressed (template no-focus flag 0). */
   readonly focusable: boolean;
+  /**
+   * Per column (window x) of the picture's first row, 1 where a caption drawn again after the
+   * picture left its rectangle's black bottom border (rendering.md §7.3); `null` where none did.
+   */
+  readonly captionLine: Uint8Array | null;
 }
 
 /** Template fields that shape a window (rendering.md §7.1). */
@@ -175,7 +183,7 @@ export function windowSize(window: Pick<PageWindow, 'page' | 'caption' | 'shadow
 
 /**
  * Draws a window over what is already in the canvas (page coordinates): the shadow, the caption
- * strip, then the page's panels below the strip.
+ * strip, the page's panels below the strip, then the line a redrawn caption left on the picture.
  */
 export function drawWindow(
   canvas: IndexedCanvas,
@@ -206,6 +214,13 @@ export function drawWindow(
   }
 
   paintPage(frame.view(0, caption, page.width, page.height), page);
+
+  const line = window.captionLine;
+  if (caption > 0 && line !== null) {
+    for (let column = CAPTION_RECT_LEFT; column < Math.min(page.width, line.length); column++) {
+      if (line[column] !== 0) frame.fill(column, caption, 1, 1, StaticColour.black);
+    }
+  }
 }
 
 /**
@@ -215,7 +230,7 @@ export function drawWindow(
 function drawCaptionStrip(canvas: IndexedCanvas, width: number, fill: number, frame: number): void {
   const black = StaticColour.black;
   // Rectangle (11,0)–(width,9), exclusive, with a 1-pixel black pen, filled with the caption colour.
-  canvas.fill(11, 0, width - 11, 9, black);
+  canvas.fill(CAPTION_RECT_LEFT, 0, width - CAPTION_RECT_LEFT, 9, black);
   canvas.fill(12, 1, width - 13, 7, fill);
   // The system box.
   canvas.fill(0, 0, 12, 1, frame);
