@@ -249,5 +249,7 @@ Settled by Alex:
 - Electron desktop app last, bring-your-own-ISO, published on GitHub;
 - public repository under a clean-room policy modelled on the Encarta project;
 - MIT licence for the code (`LICENSE`).
+- the web app presents the original's 638×459 client area, not the whole 640×480 framebuffer (2026-10-15). Checked: no base page draws outside it, and no popup in the 1,462 captured screens extends past it;
+- printouts are centred on the sheet, not top-left as in the original (2026-10-15).
 
 No open questions at present.
