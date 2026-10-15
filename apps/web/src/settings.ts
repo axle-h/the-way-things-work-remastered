@@ -3,7 +3,7 @@
 // data); the app then works with the defaults.
 
 export interface Settings {
-  /** Fill mode: non-integer nearest-neighbour scaling to fill more of the screen. */
+  /** Fill mode (the default): the largest nearest-neighbour scale that fits, whole or not. */
   readonly fill: boolean;
   /** Output volume, 0 … 1. */
   readonly volume: number;
@@ -13,7 +13,7 @@ export interface Settings {
 
 export const SETTINGS_KEY = 'twtw.settings';
 
-export const DEFAULT_SETTINGS: Settings = { fill: false, volume: 1, debug: false };
+export const DEFAULT_SETTINGS: Settings = { fill: true, volume: 1, debug: false };
 
 /** The parts of `Storage` used. */
 export interface StorageLike {

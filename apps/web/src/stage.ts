@@ -26,7 +26,7 @@ export const CLIENT_AREA: Area = { x: 0, y: 0, width: 638, height: 459 };
  */
 export const PRESENTED_AREA: Area = CLIENT_AREA;
 
-/** `integer`: the largest whole scale that fits (the default); `fill`: as large as fits. */
+/** `fill`: as large as fits (the app's default); `integer`: the largest whole scale that fits. */
 export type ScaleMode = 'integer' | 'fill';
 
 /**

@@ -1,5 +1,5 @@
 // Device checks (docs/architecture.md, "Validation" 7): at desktop, tablet and phone viewports and device pixel
-// ratios, the stage picks the expected integer scale, its backing store matches the device
+// ratios, the stage picks the expected scale (fill mode, the default), its backing store matches the device
 // pixels, a phone held upright gets the "turn sideways" screen, and a tap on a hotspot reaches
 // the page it leads to. They need the extracted disc and skip without it.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ interface Device {
   readonly dpr: number;
   readonly touch: boolean;
   /** Expected scale and fit, or `portrait` for the "turn sideways" screen. */
-  readonly expect: { readonly scale: number; readonly fit: 'integer' | 'shrink' } | 'portrait';
+  readonly expect: { readonly scale: number; readonly fit: 'fill' | 'shrink' } | 'portrait';
 }
 
 const DEVICES: readonly Device[] = [
@@ -27,7 +27,7 @@ const DEVICES: readonly Device[] = [
     height: 1080,
     dpr: 1,
     touch: false,
-    expect: { scale: 2, fit: 'integer' },
+    expect: { scale: 1080 / 459, fit: 'fill' },
   },
   {
     name: 'laptop 1366×768',
@@ -35,7 +35,7 @@ const DEVICES: readonly Device[] = [
     height: 768,
     dpr: 1,
     touch: false,
-    expect: { scale: 1, fit: 'integer' },
+    expect: { scale: 768 / 459, fit: 'fill' },
   },
   {
     name: 'desktop 2×',
@@ -43,7 +43,7 @@ const DEVICES: readonly Device[] = [
     height: 900,
     dpr: 2,
     touch: false,
-    expect: { scale: 3, fit: 'integer' },
+    expect: { scale: 1800 / 459, fit: 'fill' },
   },
   {
     name: 'tablet landscape',
@@ -51,7 +51,7 @@ const DEVICES: readonly Device[] = [
     height: 768,
     dpr: 2,
     touch: true,
-    expect: { scale: 3, fit: 'integer' },
+    expect: { scale: 2048 / 638, fit: 'fill' },
   },
   {
     name: 'tablet portrait',
@@ -59,7 +59,7 @@ const DEVICES: readonly Device[] = [
     height: 1024,
     dpr: 2,
     touch: true,
-    expect: { scale: 2, fit: 'integer' },
+    expect: { scale: 1536 / 638, fit: 'fill' },
   },
   {
     name: 'phone landscape',
@@ -67,7 +67,7 @@ const DEVICES: readonly Device[] = [
     height: 390,
     dpr: 3,
     touch: true,
-    expect: { scale: 2, fit: 'integer' },
+    expect: { scale: 1170 / 459, fit: 'fill' },
   },
   {
     name: 'small phone landscape',
@@ -75,7 +75,7 @@ const DEVICES: readonly Device[] = [
     height: 320,
     dpr: 2,
     touch: true,
-    expect: { scale: 1, fit: 'integer' },
+    expect: { scale: 640 / 459, fit: 'fill' },
   },
   { name: 'phone portrait', width: 390, height: 844, dpr: 3, touch: true, expect: 'portrait' },
   {
@@ -199,8 +199,12 @@ for (const device of DEVICES) {
       expect(state.css).toEqual([device.width, device.height]);
       expect(state.backing).toEqual([device.width * device.dpr, device.height * device.dpr]);
       expect(state.scale).toBeCloseTo(device.expect.scale, 6);
-      if (device.expect.fit === 'integer') {
-        expect([state.layout.width, state.layout.height]).toEqual([638 * state.scale, 459 * state.scale]);
+      if (device.expect.fit === 'fill') {
+        // The full width or the full height, with the aspect ratio kept.
+        const width = Math.floor(638 * state.scale);
+        const height = Math.floor(459 * state.scale);
+        expect([state.layout.width, state.layout.height]).toEqual([width, height]);
+        expect(Math.min(state.backing[0]! - width, state.backing[1]! - height)).toBeLessThanOrEqual(1);
       }
       // Centred.
       expect(Math.abs(state.backing[0]! - state.layout.width - 2 * state.layout.offsetX)).toBeLessThanOrEqual(
@@ -240,19 +244,21 @@ test.describe('settings', () => {
   test.skip(!hasDisc, 'no extracted disc (vendor/cd or $TWTW_CD): run "pnpm data"');
   test.use({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
 
-  test('switch to fill mode and remember it', async ({ page }) => {
+  test('switch to integer mode and remember it', async ({ page }) => {
     await startAt(page, AIRPLANE, false);
+    await expect(page.locator('#stage')).toHaveAttribute('data-fit', 'fill');
+    expect((await stage(page)).layout.height).toBe(1080);
     await page.locator('#settings-button').click();
     const menu = page.locator('#settings');
     await expect(menu).toBeVisible();
     await screenshot(page, 'settings open');
-    await page.locator('#setting-fill').check();
-    await expect(page.locator('#stage')).toHaveAttribute('data-fit', 'fill');
-    expect((await stage(page)).layout.height).toBe(1080);
+    await page.locator('#setting-fill').uncheck();
+    await expect(page.locator('#stage')).toHaveAttribute('data-fit', 'integer');
+    expect((await stage(page)).layout.height).toBe(459 * 2);
     await page.locator('#settings-done').click();
     await expect(menu).toBeHidden();
     await page.reload();
-    await expect(page.locator('#stage')).toHaveAttribute('data-fit', 'fill');
+    await expect(page.locator('#stage')).toHaveAttribute('data-fit', 'integer');
   });
 });
 

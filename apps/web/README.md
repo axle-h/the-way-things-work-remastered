@@ -1,18 +1,19 @@
 # @twtw/web
 
-The browser app: a full-viewport canvas showing the engine's indexed framebuffer at a crisp integer scale, pointer and keyboard input, the original's cursors, and sound through Web Audio. `pnpm dev` serves it with the extracted disc under `/data` (`vendor/cd`, or `$TWTW_CD`).
+The browser app: a full-viewport canvas showing the engine's indexed framebuffer as large as fits, with nearest neighbour, pointer and keyboard input, the original's cursors, and sound through Web Audio. `pnpm dev` serves it with the extracted disc under `/data` (`vendor/cd`, or `$TWTW_CD`).
 
 ## Presentation
 
 **Scaling** (`src/stage.ts`, pure and unit-tested; `src/presenter.ts` draws). Everything is decided in device pixels, as docs/architecture.md, "Scaling rules" says:
 - The canvas covers the viewport. Its backing store is its box in device pixels, from `ResizeObserver`'s `devicePixelContentBoxSize`, or `clientWidth × devicePixelRatio` where that is missing (Safari). So the browser never resamples; `image-rendering: pixelated` and `imageSmoothingEnabled = false` are there as well.
-- The presented area is drawn at the largest whole scale k ≥ 1 that fits, with nearest neighbour, centred and letterboxed in black. Below 1× it is shrunk with nearest neighbour at the largest scale that fits, and the debug overlay then shows a "BELOW NATIVE" line.
-- **Fill mode** (a setting, off by default) uses the largest non-integer scale instead: still nearest neighbour, the pixels a little uneven.
+- **Fill mode** (the default): the presented area is drawn at the largest scale that fits, keeping its aspect ratio, with nearest neighbour, centred and letterboxed in black. It spans the full width or the full height of the window; at a non-integer scale the pixels are a little uneven.
+- **Integer mode** (the setting "Fill the screen" off) uses the largest whole scale k ≥ 1 that fits instead, so every pixel is a k×k block.
+- Below 1× (either mode) it is shrunk with nearest neighbour at the largest scale that fits, and the debug overlay then shows a "BELOW NATIVE" line.
 - Pointer positions go back through the same layout in one place, `clientToFramebuffer`. Presses in the letterbox are ignored.
 - The original's cursors are scaled to match: each cursor pixel is about one picture pixel on screen (`cursorScale`, 1–4 CSS pixels). Off the picture the browser's own arrow shows.
 - Chromium's emulated device pixel ratio (DevTools device mode, Playwright) is not applied to `devicePixelContentBoxSize`. When that box disagrees with `clientWidth × devicePixelRatio` by more than 2 pixels, the presenter uses the latter.
 
-**Presented area.** The original's window client area is 638×459, while the engine's framebuffer is 640×480 with the page at (0,0). The app shows and hit-tests only the client area: `PRESENTED_AREA` in `src/stage.ts` is `CLIENT_AREA`, 638×459 at (0,0). Setting it to `FRAMEBUFFER_AREA` shows the full 640×480 instead; scaling and hit-testing both follow it. *Open for Alex: 638×459 (the default) or 640×480.* On a 1080p screen both give 2×.
+**Presented area.** The original's window client area is 638×459, while the engine's framebuffer is 640×480 with the page at (0,0). The app shows and hit-tests only the client area: `PRESENTED_AREA` in `src/stage.ts` is `CLIENT_AREA`, 638×459 at (0,0). Setting it to `FRAMEBUFFER_AREA` shows the full 640×480 instead; scaling and hit-testing both follow it. *Open for Alex: 638×459 (the default) or 640×480.* On a 1080p screen in integer mode both give 2×.
 
 **Phones and tablets.**
 - **Portrait phones** get a "Turn your device sideways" screen. The test is a portrait viewport whose short side is under 500 CSS pixels (`isPortraitPhone`). Tablets in portrait still show the stage, letterboxed.
@@ -25,7 +26,7 @@ The browser app: a full-viewport canvas showing the engine's indexed framebuffer
 - The icons (`public/icons/`) are our own: two gears drawn by `scripts/icons.ts`. Run `node apps/web/scripts/icons.ts` to redraw them.
 
 **Settings** (the gear in the top-right corner, in the letterbox where there is one):
-- fill mode;
+- fill mode (on by default) or integer mode;
 - volume, through the Web Audio output gain;
 - full screen;
 - **Copy picture** and **Print picture** (below);
@@ -41,7 +42,7 @@ Settings are kept in `localStorage` (`twtw.settings`), and the app works without
 
 **Device checks** (docs/architecture.md, "Validation" 7): `pnpm test:devices` runs Playwright (`e2e/devices.e2e.ts`, Chromium) against the dev server on port 47391 (`$TWTW_E2E_PORT`), with `/data` from `$TWTW_CD` or `vendor/cd`. Without the disc the tests skip.
 - **Viewports:** 1920×1080@1, 1366×768@1, 1440×900@2, 1024×768@2 (touch), 768×1024@2 (touch), 844×390@3 (touch), 568×320@2 (touch), 390×844@3 (portrait) and 600×400@1 (below native).
-- **Checks:** the scale and fit; that the backing store equals the viewport in device pixels; centring; the portrait screen; that a tap or click on a hotspot of the Airplane page reaches its target page; the Index soft keyboard; the fill setting surviving a reload; and Copy and Print (below).
+- **Checks:** the scale and fit; that the backing store equals the viewport in device pixels; centring; the portrait screen; that a tap or click on a hotspot of the Airplane page reaches its target page; the Index soft keyboard; switching to integer mode surviving a reload; and Copy and Print (below).
 - **Screenshots:** set `TWTW_SCREENSHOTS=<dir>` to save one per device, and the printouts as PDFs (`print-base-A4.pdf`, `print-popup-Letter.pdf`, …). They show disc content, so keep them out of the repository. Playwright's own output goes to the gitignored `test-results/`.
 
 ## Browser or desktop app
