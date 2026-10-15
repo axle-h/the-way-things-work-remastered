@@ -224,8 +224,130 @@ body {
   background: #474747;
 }
 
-#settings-actions:empty {
+#settings-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#settings-actions button {
+  flex: 1;
+}
+
+#settings button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* Copy without a clipboard (picture-output.ts): the picture, to copy with a long press or a
+   right click, or to save. The picture may be pressed and selected, unlike the rest of the app. */
+#picture-overlay {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgb(0 0 0 / 85%);
+  touch-action: manipulation;
+}
+
+#picture-overlay[hidden],
+#toast[hidden] {
   display: none;
+}
+
+/* Its width is a whole multiple of the picture's in device pixels (picture-output.ts). */
+#picture-overlay-image {
+  flex: none;
+  height: auto;
+  image-rendering: pixelated;
+  user-select: auto;
+  -webkit-user-select: auto;
+  -webkit-touch-callout: default;
+}
+
+#picture-overlay p {
+  margin: 0;
+  text-align: center;
+}
+
+#picture-overlay .buttons {
+  display: flex;
+  gap: 10px;
+}
+
+#picture-overlay .buttons > * {
+  min-width: 120px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--panel-text);
+  background: #3a3a3a;
+  font: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 6px;
+  color: var(--panel-text);
+  background: rgb(38 38 38 / 92%);
+  pointer-events: none;
+}
+
+/* Print (picture-output.ts, print-layout.ts): on paper only the picture, sized by the original's
+   rule and placed by data-placement; on screen nothing of it. The @page rule is in #print-page. */
+#print {
+  display: none;
+}
+
+@media print {
+  :root,
+  html,
+  body {
+    /* Light, or Chromium paints the page margins in the dark scheme's colour. */
+    color-scheme: light;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    background: #fff;
+  }
+
+  body > :not(#print) {
+    display: none !important;
+  }
+
+  #print {
+    display: block;
+  }
+
+  #print[data-placement='centred'] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #print-picture {
+    display: block;
+    height: auto;
+    image-rendering: pixelated;
+    break-inside: avoid;
+  }
 }
 
 /* A phone held upright: a friendly request to turn it, instead of a tiny picture (stage.ts). */

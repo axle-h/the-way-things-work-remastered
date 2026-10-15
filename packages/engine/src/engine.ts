@@ -347,6 +347,33 @@ export class Engine {
   }
 
   /**
+   * The page that the remake's own Copy and Print (outside the original's Options popup) act on,
+   * by the Options button's rule (behaviour.md §6.2): while an Options popup is open, the page it
+   * recorded if that is still open; otherwise the newest open window that is not an Options popup,
+   * else the base page. `null` before the first page.
+   */
+  get pictureTarget(): PageInstance | null {
+    const options = new Set(this.#optionsPages());
+    const optionsOpen = this.#popups.some((popup) => options.has(popup.page.ref));
+    if (optionsOpen) {
+      const recorded = this.#optionsPage();
+      if (recorded !== null) return recorded;
+    }
+    const newest = this.#popups.findLast((popup) => !options.has(popup.page.ref));
+    return newest?.page ?? this.#base;
+  }
+
+  /** The Options popups of the base page's navigation bar (buttons 5 and 6 of its page list). */
+  #optionsPages(): PageRef[] {
+    const refs: PageRef[] = [];
+    for (const panel of this.#base?.panels ?? []) {
+      if (panel.panel?.kind !== 'navPanel') continue;
+      for (const ref of panel.panel.buttonPages.slice(5, 7)) if (ref !== null) refs.push(ref);
+    }
+    return refs;
+  }
+
+  /**
    * The cursor for the last pointer position (behaviour.md §8): the hourglass while busy;
    * otherwise from the object under the pointer (or holding the capture).
    */

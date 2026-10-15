@@ -396,6 +396,22 @@ describe('the Options popup (special-screens.md §4)', () => {
     expect(event.image.pixels.subarray(30 * 40)).toContain(StaticColour.black);
   });
 
+  it('names the page that Copy and Print outside the Options popup act on', async () => {
+    expect(engine.pictureTarget?.ref).toBe(engine.basePage?.ref);
+    await engine.openPage(ref('label0'));
+    expect(engine.pictureTarget?.ref).toBe(ref('label0'));
+    // With the Options popup open: the page it recorded, never the Options popup itself.
+    await click(navButton(8));
+    expect(popups()).toEqual([ref('label0'), ref('options')]);
+    expect(engine.pictureTarget?.ref).toBe(ref('label0'));
+    // Without the Options popup: the newest window, else the base page.
+    await engine.closePage(ref('options'));
+    expect(engine.pictureTarget?.ref).toBe(ref('label0'));
+    await engine.closePage(ref('label0'));
+    expect(popups()).toEqual([]);
+    expect(engine.pictureTarget?.ref).toBe(engine.basePage?.ref);
+  });
+
   it('copies at rest: scroll bars at their position, no animation frames or pressed buttons', async () => {
     await click(navButton(7));
     await click(inWindow(windowOf('help0'), 20, 20));

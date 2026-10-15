@@ -1,7 +1,7 @@
 /**
  * The picture that the Options popup's "copy" and "print" produce (special-screens.md §4.4): the
  * target page's panels painted at rest into a picture of the page's content size, extended by a
- * 40-row white band holding the copyright line, centred, in black. Phase 8 puts it on the
+ * 40-row white band holding the copyright line, centred, in black. The presenter puts it on the
  * clipboard or prints it; this builds it as an indexed image.
  */
 import { StaticColour } from '../colours.ts';
