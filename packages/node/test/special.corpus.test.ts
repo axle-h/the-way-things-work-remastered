@@ -1,5 +1,5 @@
 /**
- * Corpus tests for the special screens (special-screens.md) and the Phase 6 coverage criterion:
+ * Corpus tests for the special screens (special-screens.md) and the type coverage of special-screens.md §8:
  * every type the disc uses is implemented; the Index page renders and every one of its entries
  * goes to its target and opens its companion pages; the six scrolling Help pages scroll through
  * their whole range. Only counts, positions and page offsets are asserted; nothing from the disc

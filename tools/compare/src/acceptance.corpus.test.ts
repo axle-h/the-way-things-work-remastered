@@ -1,5 +1,5 @@
 /**
- * Corpus test: the Phase 2 acceptance set of Wine reference captures matches the engine's
+ * Corpus test: the acceptance set of Wine reference captures matches the engine's
  * rendering, with every difference explained. Reads the disc (`vendor/cd` or `$TWTW_CD`) and the
  * captures (`vendor/ref` or `$TWTW_REF`), and skips when either is absent, as on CI.
  */

@@ -1,4 +1,4 @@
-// Copy and Print of a page's captioned picture (docs/PLAN.md Phase 8; special-screens.md §4).
+// Copy and Print of a page's captioned picture (special-screens.md §4).
 // Copy puts a PNG on the clipboard, or shows the picture to copy or save by hand where the
 // clipboard is unavailable. Print fills a print-only element and opens the browser's print dialog.
 // Sizes and layout are in `print-layout.ts`; the PNG encoder in `png.ts`.

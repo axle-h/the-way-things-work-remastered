@@ -15,7 +15,7 @@ import {
  * the animation as soon as the page opens. */
 export const FLAG_AUTOSTART = 0x20;
 
-/** Named pages, for the command line and the acceptance set (PLAN Phase 2). */
+/** Named pages, for the command line and the acceptance set. */
 export const PAGE_NAMES = ['title', 'workshop', 'az-machine', 'az-a', 'airplane'] as const;
 export type PageName = (typeof PAGE_NAMES)[number];
 

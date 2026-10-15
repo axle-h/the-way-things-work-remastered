@@ -9,7 +9,7 @@
 # glibc, as on the machines the lockfile is made on: Vite's native bindings are per libc.
 FROM node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS web
 
-# pnpm at the version `packageManager` in package.json pins, through Corepack (PLAN §3).
+# pnpm at the version `packageManager` in package.json pins, through Corepack (docs/architecture.md, "Dependency policy").
 ENV PNPM_HOME=/pnpm \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 ENV PATH=$PNPM_HOME:$PATH

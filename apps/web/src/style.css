@@ -15,7 +15,7 @@
   text-size-adjust: 100%;
 }
 
-/* The app fills the viewport and never scrolls, zooms or bounces (docs/PLAN.md §3, "Responsive input"). */
+/* The app fills the viewport and never scrolls, zooms or bounces (docs/architecture.md, "Responsive input"). */
 html,
 body {
   margin: 0;
@@ -37,7 +37,7 @@ body {
 
 /* The canvas covers the viewport; its backing store is sized in device pixels from its box, and
    the picture is drawn into it at an integer scale, centred (stage.ts, presenter.ts). Never let
-   the browser smooth the artwork (docs/PLAN.md §3, "Scaling rules"). */
+   the browser smooth the artwork (docs/architecture.md, "Scaling rules"). */
 #stage {
   display: block;
   width: 100%;

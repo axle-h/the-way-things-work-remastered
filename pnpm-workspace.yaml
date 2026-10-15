@@ -6,7 +6,7 @@ packages:
   - tools/refcapture
   - tools/compare
 
-# Dependency policy (docs/PLAN.md §3). pnpm 11 reads these settings from this file, not from .npmrc.
+# Dependency policy (docs/architecture.md, "Dependency policy"). pnpm 11 reads these settings from this file, not from .npmrc.
 # Do not resolve versions published less than a week ago (minutes).
 minimumReleaseAge: 10080
 # Add dependencies with exact versions.

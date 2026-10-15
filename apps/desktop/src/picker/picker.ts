@@ -1,4 +1,4 @@
-// The disc chooser (docs/PLAN.md Phase 10): shown on the first run, when the remembered disc cannot
+// The disc chooser: shown on the first run, when the remembered disc cannot
 // be opened, and from Settings → Change disc…. The system's file dialog, the checks and the switch to
 // the app all happen in the main process, through the preload bridge.
 import type { DesktopBridge, DiscKind, DiscStatus } from '@twtw/web/desktop-bridge';

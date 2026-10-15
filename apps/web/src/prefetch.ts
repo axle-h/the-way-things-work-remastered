@@ -1,7 +1,6 @@
-// Fetching the files of the pages that can come next while the user looks at the current one
-// (docs/PLAN.md Phase 7). The engine says which files (`filesToPrefetch`); this decides how many
-// and when: a few at a time, small enough files only, and a fresh list replaces the old one when
-// the page changes.
+// Fetching the files of the pages that can come next while the user looks at the current one.
+// The engine says which files (`filesToPrefetch`); this decides how many and when: a few at a
+// time, small enough files only, and a fresh list replaces the old one when the page changes.
 
 /** What the prefetcher needs from the data source (HttpDataSource). */
 export interface PrefetchSource {

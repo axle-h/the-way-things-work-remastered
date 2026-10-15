@@ -1,6 +1,6 @@
 # Behaviour: input, events, actions, history, cursors, keyboard
 
-How the original program reacts to the user: which window and object receive a mouse event, when a click counts, how handlers and actions run, what each page action does, the navigation bar and its history, the cursors and the keyboard. It is written for Phase 4 (interaction). Sound and animation playback, which several rules here refer to, is in [playback.md](playback.md). Drawing is in [rendering.md](rendering.md). Markers: [V] verified against the original running under Wine, [C] read from the code, [H] hypothesis. Addresses are provenance only.
+How the original program reacts to the user: which window and object receive a mouse event, when a click counts, how handlers and actions run, what each page action does, the navigation bar and its history, the cursors and the keyboard. Sound and animation playback, which several rules here refer to, is in [playback.md](playback.md). Drawing is in [rendering.md](rendering.md). Markers: [V] verified against the original running under Wine, [C] read from the code, [H] hypothesis. Addresses are provenance only.
 
 Terms used throughout:
 - **Page window**: the base page draws into the main window; each popup (and the index page) has its own window (rendering.md §7). The program keeps a list of open page windows, oldest first. The base page's window is always the oldest, so it heads the list; popups are appended as they open [C] (`1008:9346`).
@@ -255,7 +255,7 @@ When another application becomes active, the program stops all media and redraws
 - Hit-test with inclusive rectangles, last object first. Keep the release test of §1.5 step 6 (pressed object, y + 1) if exactness matters; it only changes the outcome on the bottom row of a hotspot.
 - Defer page actions to after the handler, in order.
 - Keep "a click while something plays only stops it" (§3, §6.1): children will notice when a button needs two presses.
-- Choices made (Phase 4): mouse double clicks are treated as in the original (the second click is ignored, Windows 3.1's 500 ms and 4×4 pixels); taps never form a double click. **Deliberate difference:** Back with fewer than two history entries does nothing and leaves the program usable, instead of keeping it busy (§6.3).
+- Choices made: mouse double clicks are treated as in the original (the second click is ignored, Windows 3.1's 500 ms and 4×4 pixels); taps never form a double click. **Deliberate difference:** Back with fewer than two history entries does nothing and leaves the program usable, instead of keeping it busy (§6.3).
 
 ## 12. What to check against the original
 In Wine (fine for everything not timed by animations):

@@ -1,4 +1,4 @@
-// The user's disc (docs/PLAN.md Phase 10): a disc image (.iso) read in place through the ISO 9660
+// The user's disc: a disc image (.iso) read in place through the ISO 9660
 // reader, or a folder holding the disc's files (a CD in a drive, or a copy). Nothing is extracted or
 // copied. Before it is used it is checked to be The Way Things Work as this app knows it: the image's
 // volume label, and the SHA-256 of the page database (identity.ts). No Electron imports, so it is

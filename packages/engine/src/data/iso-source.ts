@@ -5,7 +5,7 @@ import { FileIndex } from './file-index.ts';
 
 /**
  * A {@link DataSource} over a disc image, read in place through the ISO 9660 reader: the desktop
- * app serves the user's `.iso` this way, without extracting it (docs/PLAN.md §3, "Data access").
+ * app serves the user's `.iso` this way, without extracting it (docs/architecture.md, "Data access").
  * Opening it walks the directory tree once; each read then asks the image's block source for just
  * that file's bytes.
  */

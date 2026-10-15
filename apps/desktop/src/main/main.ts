@@ -1,4 +1,4 @@
-// The desktop app's main process (docs/PLAN.md Phase 10): one window showing the web app's own build
+// The desktop app's main process: one window showing the web app's own build
 // over the `app:` protocol (routes.ts), with the user's disc served at `/data/` from their disc image
 // or CD, read in place (disc.ts). The first run, and Settings → Change disc…, show the disc chooser
 // page instead. See apps/desktop/README.md for the security model.

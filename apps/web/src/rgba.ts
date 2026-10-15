@@ -1,5 +1,5 @@
 // Conversion of the engine's indexed framebuffer to RGBA happens here, at present time only
-// (docs/PLAN.md §3, "Framebuffer").
+// (docs/architecture.md, "Framebuffer").
 
 /** Converts palette indices to RGBA through a palette of RGB triplets, into `out` (4 bytes per pixel). */
 export function indexedToRgba(pixels: Uint8Array, palette: Uint8Array, out: Uint8ClampedArray): void {

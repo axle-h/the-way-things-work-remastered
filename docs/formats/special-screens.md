@@ -1,6 +1,6 @@
 # Special screens: Index, scroll bars, Options, Help
 
-How the original program handles the screens that are more than pictures and hotspots: the Index page with its list box, the custom scroll bars, the Options popup with copy, print and printer setup, and the Help pages. It also closes the list of object and action types for Phase 6 (section 8). It is written for Phase 6 (special screens) and Phase 8 (print and copy). Drawing at rest is in [rendering.md](rendering.md), input routing in [behaviour.md](behaviour.md). Markers: [V] verified (against the data, or the original under Wine), [C] read from the code, [H] hypothesis. Addresses are provenance only.
+How the original program handles the screens that are more than pictures and hotspots: the Index page with its list box, the custom scroll bars, the Options popup with copy, print and printer setup, and the Help pages. It also closes the list of object and action types (section 8). Drawing at rest is in [rendering.md](rendering.md), input routing in [behaviour.md](behaviour.md). Markers: [V] verified (against the data, or the original under Wine), [C] read from the code, [H] hypothesis. Addresses are provenance only.
 
 Coordinates are page coordinates under Windows 3.1 unless stated otherwise: page pixel (0,0) is the top-left of the main window's client area (rendering.md). "Picture coordinates" are relative to a popup's picture, which sits 8 rows below its window's top edge (rendering.md §7.2).
 
@@ -46,7 +46,7 @@ After its first paint the Index window creates five child windows. Their positio
 - **One row** [H, standard Windows 3.1 list box]: the item rectangle is the list's full width × 13 rows. The name is drawn from the item's left edge plus a 1-pixel margin, at its top, clipped to the item. Unselected: black text (index 0) on white (index 255). Selected: white text (255) on the highlight colour, navy `000080` (index 4) in the default Windows 3.1 colour scheme. When the list has the focus, a dotted focus rectangle is drawn around the selected row. Names wider than the list are cut off; there is no horizontal scrolling.
 - **Edit box** [H, standard Windows 3.1 edit control]: the same font, black on white, text starting at the left edge and the top. While it has the focus, selected text is white on navy and a blinking caret shows; without the focus the selection is not shown.
 - **Characters** [V]: names are Windows-1252; besides ASCII they use only `é`, `ö` and the soft hyphen (byte `0xAD`). 325 names use the soft hyphen as a separator, as in "Absorber, Shock ­ Car Suspension". MS Serif draws `0xAD` as a visible short dash (one row lower than `-`). **A remake must draw it as a dash**: a browser's soft hyphen is invisible. Ten names contain two spaces in a row; draw them as stored.
-- **For the remake**: Microsoft's font cannot be shipped. Draw the text into the indexed framebuffer with a bitmap font of our own that keeps the metrics above (13-pixel rows, ascent 11, simulated bold), and accept a tolerance on these areas in pixel comparisons (PLAN §5.5).
+- **For the remake**: Microsoft's font cannot be shipped. Draw the text into the indexed framebuffer with a bitmap font of our own that keeps the metrics above (13-pixel rows, ascent 11, simulated bold), and accept a tolerance on these areas in pixel comparisons (docs/architecture.md, "Validation" 5).
 
 ### 1.4 Contents [C][V]
 - The list holds every A–Z index entry (page-database.md), one row per entry, in **data order**: the list box does not sort. The data is almost alphabetical; two entries are out of order ("Motor, Stepper ­ Electric Motor" before "Moldboard", "Röntgen, Wilhelm" before "Rotary Pumps") and the remake must keep them where they are [V].
@@ -128,7 +128,7 @@ This is a small child window of the program's own, separate from the ScrollBar d
 
 ### 1.12 For the remake
 - Draw the Index controls into the indexed framebuffer as part of the Index page, in the colours of section 1.3. The browser's own form controls must not be used; their look and behaviour differ.
-- Typing needs a keyboard. On touch devices (Phase 7) the web app offers the soft keyboard, a presentation addition outside the original:
+- Typing needs a keyboard. On touch devices the web app offers the soft keyboard, a presentation addition outside the original:
   - a tap (touch or pen release) that leaves the Index window and its edit box with the focus focuses a hidden text field, which brings up the soft keyboard; a tap that leaves the focus elsewhere, or the Index closing, hides it;
   - the field mirrors the edit box's text and selection. Each change of its text hands the whole new text to the edit box, with the caret where the field has it, and is then handled as typing (section 1.8). Characters the edit box cannot hold are dropped, and a text that would no longer fit the box is refused (the field reverts to the edit box's text);
   - key events still go to the engine first, so a hardware keyboard, or a soft keyboard that sends real keys, types once; the field only acts for input that comes without usable key events (Android's soft keyboards, input methods);
@@ -238,7 +238,7 @@ Provenance: page picture `1028:661c`, caption band `1010:e936`, strings 5000 and
 
 So a base page copies or prints as 638×499 pixels, a 287×330 popup as 287×370.
 
-**Observed under Wine** (wine-staging 11, 24-bit X display; Phase 8) [V]: Options → Copy on the Airplane page (1538) put a 638×499 picture on the clipboard, and with the Airplane popup 2534 opened first, a 287×370 one. In both, the 459 (or 330) picture rows are **identical, pixel for pixel, to the remake's `buildCopyImage`** (with the Wine palette patch of reference-environments.md), and the band is white. The caption's ink lies at columns 129–508, rows 474–486 for the base page, which fits the System-font cell at (128, 471) above. For the popup, a smaller sans-serif face, 9 rows of ink at columns 20–267, rows 346–354, confirms the narrow-font path; the face is Wine's substitute for "Ariel", so its glyphs say nothing about Windows 3.1. Wine's X clipboard bridge did not export the picture (the X `CLIPBOARD` selection stayed unowned), so it was read inside Wine with a small clipboard dump program of our own.
+**Observed under Wine** (wine-staging 11, 24-bit X display) [V]: Options → Copy on the Airplane page (1538) put a 638×499 picture on the clipboard, and with the Airplane popup 2534 opened first, a 287×370 one. In both, the 459 (or 330) picture rows are **identical, pixel for pixel, to the remake's `buildCopyImage`** (with the Wine palette patch of reference-environments.md), and the band is white. The caption's ink lies at columns 129–508, rows 474–486 for the base page, which fits the System-font cell at (128, 471) above. For the popup, a smaller sans-serif face, 9 rows of ink at columns 20–267, rows 346–354, confirms the narrow-font path; the face is Wine's substitute for "Ariel", so its glyphs say nothing about Windows 3.1. Wine's X clipboard bridge did not export the picture (the X `CLIPBOARD` selection stayed unowned), so it was read inside Wine with a small clipboard dump program of our own.
 
 The remake's copy and print of this picture, including **Alex's decision to centre printouts on the sheet** (rather than the original's top-left placement), are in section 4.8.
 
@@ -265,7 +265,7 @@ Provenance: `1028:5800` → `1028:5870` → `1028:59b2`; layout `1028:5f14`; pri
 Provenance: `1028:6a7e`.
 The standard Windows "Print Setup" common dialog, owned by the program's window. Its result (printer, orientation, paper) is kept for later prints until the program exits. Cancelling changes nothing. Under Wine with no printer installed, the common dialog code shows its "install a printer" message instead [V].
 
-### 4.8 For the remake (Phase 8)
+### 4.8 For the remake
 - **The picture**: the engine builds the captioned picture (`buildCopyImage`, `Engine.copyImage`) as an indexed image in the screen palette and hands it to the presenter with the ProductOption event; the copyright line is read from string 5000 of `TWTW.EXE` at runtime. The caption is drawn with the engine's own font (section 1.12) in bold when it fits, regular when only that fits, else squeezed to the picture's width by dropping columns, an approximation of both of the original's fonts (exact glyphs are not required). The legal line is part of the original's output and is kept.
 - **Copy** (option 1): the captioned picture as a PNG at 2× on the clipboard (`navigator.clipboard.write`). Where the clipboard is missing or refuses, the picture is shown so that it can be copied with a long press or right click, or saved.
 - **Print** (option 2): the browser's print dialog replaces the original's direct printing. Only the captioned picture is printed, with nearest-neighbour scaling, at one scale for every picture on a sheet: the smaller of the original's two scales (a 640-pixel screen spanning the printable width, 520 rows filling its height), so a popup still prints at *W*/640 of a full screen's width. The original takes the height scale only when the picture itself would overflow, so on a landscape sheet a wide picture under about 440 rows prints up to a fifth larger there. Wide pictures print in landscape, tall ones in portrait.
@@ -290,7 +290,7 @@ The standard Windows "Print Setup" common dialog, owned by the program's window.
 - Apart from the Index controls (section 1.3) and the copy/print caption (section 4.4), the program draws no text of its own: article text, the A–Z lists and the Options labels are in the pictures. (The AZDial's 26 strings are file names, not text to draw.)
 - For the remake: a fixed `document.title` of "The Way Things Work" matches the original (the web app sets it); a per-page title would be an addition.
 
-## 8. Coverage of types (Phase 6 "done" criterion)
+## 8. Coverage of types
 Every type the database defines, where it is specified, and what the remake does with it.
 
 | Kind | Type | Spec | Remake |
@@ -313,7 +313,7 @@ Every type the database defines, where it is specified, and what the remake does
 | Action | 2 SendMessage | behaviour.md §4.5 | implement (only (181, 59)) |
 | Action | 4 PlayWave, 7 PlayPics | playback.md §4 | implement |
 | Action | 5 StopWave, 6 SeekWave, 8 PlayPicsNoLoad, 9 PlayNonQueuedPics, 10 StopPics, 13 SeekPics | playback.md §4 | none on the disc; implemented from the spec (SeekWave does nothing) |
-| Action | 11 ProductOption | section 4 | implement: the copy and print picture (Phase 6); clipboard, printing and print setup (Phase 8, section 4.8) |
+| Action | 11 ProductOption | section 4 | implement: the copy and print picture; clipboard, printing and print setup (section 4.8) |
 | Event | 1 open, 4 click, 6 finished | behaviour.md §2 | implement |
 | Event | 5 before open | behaviour.md §2 | none on the disc; fired for popups (rendering.md §8) |
 | Event | 2 app activated, 3 close | behaviour.md §2 | **dropped**: no handler on the disc, and when the original fires them is not established |
@@ -331,7 +331,7 @@ None of these screens has a reference capture yet. Under Wine (`tools/refcapture
 2. The Options popup: `pnpm refcapture path workshop 438408:849:8` (page 278816): the CancelButton and its two extra columns and rows (section 4.2).
 3. Options → Mammoth Movies: `pnpm refcapture path workshop 438408:849:8 278816:1:2` (page 279010): the window placement after a popup-to-popup change of size (rendering.md §7.7).
 4. Help: `pnpm refcapture path workshop 438408:849:9` (page 117408), then the scrolling pages `… 438408:849:9 117408:1:36` (142290) and `… 438408:849:9 117408:1:38` (146482). Then a click on the bar's centre, `… 117408:1:38 146482:1:3` (page down on `helpbmt0`): expect position 16, so the picture from its row 291 and the thumb top at panel row 125 (section 3.2: *d* = 1,220, *n* = 67, *t* = 255). A click held longer than 100 ms steps more than once, so record the press duration.
-5. ~~Copy~~: done in Phase 8 (section 4.4). Wine's X clipboard bridge does not export the picture, so read the clipboard inside Wine instead.
+5. ~~Copy~~: done (section 4.4). Wine's X clipboard bridge does not export the picture, so read the clipboard inside Wine instead.
 6. Help button twice after moving to another Help page: two Help windows (section 5).
 7. Keyboard on the Index (needs key input in the harness): type "air", Down, Page Down, Tab, Enter; check the selection, the edit box text and the page reached (with its companion popup open).
 

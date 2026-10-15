@@ -1,4 +1,4 @@
-// Pointer and keyboard input for the stage (docs/PLAN.md §3, "Responsive input"): Pointer Events
+// Pointer and keyboard input for the stage (docs/architecture.md, "Responsive input"): Pointer Events
 // for mouse, touch and pen, a tap or click acting on release; the browser's own gestures (double-tap
 // zoom, pinch, long-press menu) are kept off the stage.
 import { DoubleClickDetector, type Engine } from '@twtw/engine';

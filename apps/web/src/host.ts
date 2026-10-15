@@ -1,4 +1,4 @@
-// What the page needs from wherever it runs (docs/PLAN.md Phase 10): a browser, or the desktop app,
+// What the page needs from wherever it runs: a browser, or the desktop app,
 // which runs this same build in Electron. The desktop app serves the disc at the same `/data/` URL
 // from the user's own disc image, and offers the system clipboard and a way to choose another disc
 // through its preload bridge (`desktop-bridge.ts`). Printing is `window.print()` in both: Electron

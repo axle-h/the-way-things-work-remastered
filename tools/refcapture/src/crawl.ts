@@ -16,7 +16,7 @@ export interface CrawlOptions {
   readonly attempts: number;
 }
 
-/** The acceptance popup (PLAN Phase 2): the first popup the Airplane article opens. */
+/** The acceptance popup: the first popup the Airplane article opens. */
 export function acceptancePopup(harness: Harness): { base: PageRef; popup: PageRef } {
   const base = namedPage(harness.db, 'airplane');
   const opener = popupOpeners(harness.db.getPage(base))[0];

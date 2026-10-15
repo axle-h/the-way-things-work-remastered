@@ -26,7 +26,7 @@ const USAGE = `usage: pnpm refcapture <command> [options]
   page <page>...            start at each base page and capture it (vendor/ref/<page>/startup.png)
   path <start> <step>...    start at a base page, click each step (page:panel:object), capture each
   popups <page>...          capture a base page and every popup its objects open
-  acceptance                the Phase 2 acceptance set (${PAGE_NAMES.join(', ')} and an Airplane popup)
+  acceptance                the acceptance set (${PAGE_NAMES.join(', ')} and an Airplane popup)
   crawl                     every base page; --popups none|acceptance|all (default acceptance)
   list [<page>]             base pages, or a page's clickable objects as steps
   index                     rebuild vendor/ref/index.json from the sidecars

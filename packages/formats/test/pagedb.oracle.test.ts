@@ -1,5 +1,5 @@
 /**
- * Oracle comparison (docs/PLAN.md §5.3): our parse of the disc's page database against the JSON
+ * Oracle comparison (docs/architecture.md, "Validation" 3): our parse of the disc's page database against the JSON
  * written by the private oracle (`analysis/decompiled/out/twtw_png.json`, gitignored). Only the
  * oracle's output is used. Our model is converted to the oracle's JSON shape and compared value
  * by value. Skips when the disc or the JSON is absent; `$TWTW_ORACLE_JSON` overrides the path.

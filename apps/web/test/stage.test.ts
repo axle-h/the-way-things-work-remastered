@@ -12,7 +12,7 @@ import {
   PRESENTED_AREA,
 } from '../src/stage.ts';
 
-describe('computeLayout (PLAN §3, "Scaling rules")', () => {
+describe('computeLayout (docs/architecture.md, "Scaling rules")', () => {
   it('presents the 638×459 client area by default', () => {
     expect(PRESENTED_AREA).toEqual({ x: 0, y: 0, width: 638, height: 459 });
     expect(PRESENTED_AREA).toBe(CLIENT_AREA);

@@ -1,4 +1,4 @@
-// Device checks (docs/PLAN.md §5.7): at desktop, tablet and phone viewports and device pixel
+// Device checks (docs/architecture.md, "Validation" 7): at desktop, tablet and phone viewports and device pixel
 // ratios, the stage picks the expected integer scale, its backing store matches the device
 // pixels, a phone held upright gets the "turn sideways" screen, and a tap on a hotspot reaches
 // the page it leads to. They need the extracted disc and skip without it.
@@ -296,7 +296,7 @@ test.describe('the Index on a touch screen', () => {
   });
 });
 
-// Copy and Print (docs/PLAN.md Phase 8; special-screens.md §4). The Options button is navigation
+// Copy and Print (special-screens.md §4). The Options button is navigation
 // bar object 8, (5,417)–(90,435) in the bar at page (0,0); the Options popup's Copy, Print and
 // Printer setup hotspots are at these points of its picture (special-screens.md §4.1).
 const OPTIONS_BUTTON = { x: 47, y: 426 };

@@ -1,6 +1,6 @@
 /**
- * Which disc files to fetch ahead of time so that the next tap feels instant (docs/PLAN.md
- * Phase 7, "preloading"): the sounds and animations the pages on screen play when tapped, then
+ * Which disc files to fetch ahead of time so that the next tap feels instant: the
+ * sounds and animations the pages on screen play when tapped, then
  * the pictures of the pages they can lead to, then those pages' sounds and animations. A presenter
  * fetches them in this order while nothing else happens; the engine itself never waits for them.
  */

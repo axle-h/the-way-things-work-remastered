@@ -2,9 +2,9 @@
 
 The browser app: a full-viewport canvas showing the engine's indexed framebuffer at a crisp integer scale, pointer and keyboard input, the original's cursors, and sound through Web Audio. `pnpm dev` serves it with the extracted disc under `/data` (`vendor/cd`, or `$TWTW_CD`).
 
-## Presentation (Phase 7)
+## Presentation
 
-**Scaling** (`src/stage.ts`, pure and unit-tested; `src/presenter.ts` draws). Everything is decided in device pixels, as PLAN §3 "Scaling rules" says:
+**Scaling** (`src/stage.ts`, pure and unit-tested; `src/presenter.ts` draws). Everything is decided in device pixels, as docs/architecture.md, "Scaling rules" says:
 - The canvas covers the viewport. Its backing store is its box in device pixels, from `ResizeObserver`'s `devicePixelContentBoxSize`, or `clientWidth × devicePixelRatio` where that is missing (Safari). So the browser never resamples; `image-rendering: pixelated` and `imageSmoothingEnabled = false` are there as well.
 - The presented area is drawn at the largest whole scale k ≥ 1 that fits, with nearest neighbour, centred and letterboxed in black. Below 1× it is shrunk with nearest neighbour at the largest scale that fits, and the debug overlay then shows a "BELOW NATIVE" line.
 - **Fill mode** (a setting, off by default) uses the largest non-integer scale instead: still nearest neighbour, the pixels a little uneven.
@@ -28,7 +28,7 @@ The browser app: a full-viewport canvas showing the engine's indexed framebuffer
 - fill mode;
 - volume, through the Web Audio output gain;
 - full screen;
-- **Copy picture** and **Print picture** (Phase 8, below);
+- **Copy picture** and **Print picture** (below);
 - "Show page info", the debug overlay listing the pages on screen, the history, loading problems and the stage's scale.
 
 Settings are kept in `localStorage` (`twtw.settings`), and the app works without storage. While the menu is open, keys go to the menu and not to the engine.
@@ -39,16 +39,16 @@ Settings are kept in `localStorage` (`twtw.settings`), and the app works without
 - **Where they go.** The HTTP data source keeps fetched and recently read files in a 64 MB least-recently-used memory cache (`src/byte-cache.ts`), and a read joins a prefetch already in flight.
 - Prefetching starts only after the first page shows, behind the "tap to start" gate, and needs no gesture. There is no Service Worker.
 
-**Device checks** (PLAN §5.7): `pnpm test:devices` runs Playwright (`e2e/devices.e2e.ts`, Chromium) against the dev server on port 47391 (`$TWTW_E2E_PORT`), with `/data` from `$TWTW_CD` or `vendor/cd`. Without the disc the tests skip.
+**Device checks** (docs/architecture.md, "Validation" 7): `pnpm test:devices` runs Playwright (`e2e/devices.e2e.ts`, Chromium) against the dev server on port 47391 (`$TWTW_E2E_PORT`), with `/data` from `$TWTW_CD` or `vendor/cd`. Without the disc the tests skip.
 - **Viewports:** 1920×1080@1, 1366×768@1, 1440×900@2, 1024×768@2 (touch), 768×1024@2 (touch), 844×390@3 (touch), 568×320@2 (touch), 390×844@3 (portrait) and 600×400@1 (below native).
 - **Checks:** the scale and fit; that the backing store equals the viewport in device pixels; centring; the portrait screen; that a tap or click on a hotspot of the Airplane page reaches its target page; the Index soft keyboard; the fill setting surviving a reload; and Copy and Print (below).
 - **Screenshots:** set `TWTW_SCREENSHOTS=<dir>` to save one per device, and the printouts as PDFs (`print-base-A4.pdf`, `print-popup-Letter.pdf`, …). They show disc content, so keep them out of the repository. Playwright's own output goes to the gitignored `test-results/`.
 
-## Browser or desktop app (Phase 10)
+## Browser or desktop app
 
 The same build runs in the desktop app (`apps/desktop`), which loads it over its own `app://twtw/` protocol and serves the user's disc image at `/data/`. `src/host.ts` is the one place that differs: it looks for the desktop app's preload bridge (`window.twtwDesktop`, typed in `src/desktop-bridge.ts`). With it, the app starts without the "tap to start" gate (the desktop app allows autoplay), **Copy picture** hands the PNG to the system clipboard, and the settings show **Change disc…**. Without it, it is the browser: `/data/` from the server, `navigator.clipboard`, the gate. Printing is `window.print()` in both.
 
-## Copy and print (Phase 8)
+## Copy and print
 
 What the original copies and prints is in `docs/formats/special-screens.md` §4: the page's picture with a 40-row white band and the copyright line, 638×499 for a base page, W×(H+40) for a popup. The engine builds it (`Engine.copyImage`); `src/picture-output.ts` copies and prints it; the sizes and layout are pure functions in `src/print-layout.ts`, and the PNG encoder is `src/png.ts` (a palette PNG, deflated with the platform's `CompressionStream`; the canvas encoder stands in where that is missing).
 
@@ -79,14 +79,14 @@ In development builds, `window.twtw` holds the engine, the media, the sink, the 
 
 `#page=<ref>` in the URL starts at another page (after the gate), `#page=<ref>,popup=<ref>` opens popups over it, and `presentation=wine` places popups as in the Wine captures.
 
-## Special screens (Phase 6)
+## Special screens
 
 - **Index**: typing, Tab, Enter, Esc, the arrows and Page Up/Down go to the Index while it is open; the list scrolls with its scroll bar, and by swiping on a touch screen (a tap on a row selects it, a tap on the selected row goes).
 - **Help**: the scrolling Help pages scroll with their bar; on a touch screen the thumb keeps following the finger off the bar, and swiping the picture scrolls it.
-- **Copy and print** (Options): see "Copy and print (Phase 8)" above.
+- **Copy and print** (Options): see "Copy and print" above.
 - The page title is fixed: "The Way Things Work", as the original's window title.
 
-## Playtest checklist (Phase 5)
+## Playtest checklist
 
 Run on a laptop or desktop browser (Chrome, Firefox, Safari), a tablet and a phone in landscape, with sound on. Note the device, browser and anything that fails.
 

@@ -1,6 +1,6 @@
 # tools/refcapture
 
-`pnpm refcapture` drives the original program under Wine on a nested X server and saves reference screens for the pixel comparisons of later phases (`docs/PLAN.md` §5.4). Everything it writes stays under `vendor/` (gitignored); captures are never committed. How the reference environment works, and why the harness does what it does, is in `docs/reference-environments.md`.
+`pnpm refcapture` drives the original program under Wine on a nested X server and saves reference screens for the pixel comparisons (`docs/architecture.md`, "Validation" 4). Everything it writes stays under `vendor/` (gitignored); captures are never committed. How the reference environment works, and why the harness does what it does, is in `docs/reference-environments.md`.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ pnpm refcapture env start|stop|status   # Xwayland on :5 ($TWTW_REF_DISPLAY)
 pnpm refcapture page <page>...          # capture base pages
 pnpm refcapture path <start> <step>...  # replay clicks, capture after each
 pnpm refcapture popups <page>...        # a base page and every popup it opens
-pnpm refcapture acceptance              # the Phase 2 acceptance set
+pnpm refcapture acceptance              # the acceptance set
 pnpm refcapture crawl [--popups none|acceptance|all]
 pnpm refcapture list [<page>]           # base pages, or a page's clickable objects as steps
 pnpm refcapture index                   # rebuild vendor/ref/index.json

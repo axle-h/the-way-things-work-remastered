@@ -1,6 +1,6 @@
 # Rendering: how the original draws pages
 
-How the original program turns a page from the page database (`page-database.md`) into pixels: the client area, panels, display objects, popup windows and the palette. It is written for the static renderer (Phase 3) and notes what hit-testing (Phase 4) and media (Phase 5) need where it came up. Markers: [V] verified (against Wine reference captures unless stated otherwise), [C] read from the code, [H] hypothesis.
+How the original program turns a page from the page database (`page-database.md`) into pixels: the client area, panels, display objects, popup windows and the palette. It is written for the static renderer and notes what hit-testing and media need where it came up. Markers: [V] verified (against Wine reference captures unless stated otherwise), [C] read from the code, [H] hypothesis.
 
 Coordinates are **page coordinates**: page pixel (0,0) is the top-left of the main window's client area (`program.md`, Window). Object rectangles are relative to their panel.
 
@@ -89,13 +89,13 @@ What each display object draws during a panel paint, with nothing playing or pre
 |---|---|
 | Bitmap (601) | its picture (section 4) |
 | Hotspot (603), AZHotspot (604) | nothing. The Hotspot `i16` (always 0) selects a highlight style 1–4 that is drawn while the hotspot is pressed; 0 means no highlight (`1010:b9c0`) |
-| WordBox (605), NavHotspot (606), AnimHotspot (607), AZAnimHotspot (611) | nothing. Their drawing method is empty; animation frames appear only while an animation plays (Phase 5) |
+| WordBox (605), NavHotspot (606), AnimHotspot (607), AZAnimHotspot (611) | nothing. Their drawing method is empty; animation frames appear only while an animation plays |
 | CancelButton (608) | EXE bitmap **170** (62×22, "Cancel") at the rectangle's top-left (`1030:13ea`, `1030:2e40`); 171 while pressed (special-screens.md §4.2). The copy uses the rectangle's size (64×24 on the disc). What GDI puts in the two columns and rows beyond the 62×22 source is not established; most likely nothing, leaving the popup picture [H] |
 | AnimationControl (602) | a 74×22 control strip from EXE bitmaps, sized to bitmap 101 (see below) |
 | ScrollBitmap (609) | its picture, but **not** at natural size: the rectangle's size is shown, taken from the picture starting at the row of its scroll position (row 0 at rest; special-screens.md §3.2), column 0 (`1030:bbae`). Its rectangle is not replaced by the picture size |
 | ScrollBar (610) | five parts from its `@` bitmaps (see below) |
 
-**AnimationControl** (`1028:987a`, `1028:a474`; Phase 5): its rectangle becomes 74×22 from its top-left. Parts, from EXE bitmaps, at offsets from that top-left:
+**AnimationControl** (`1028:987a`, `1028:a474`): its rectangle becomes 74×22 from its top-left. Parts, from EXE bitmaps, at offsets from that top-left:
 
 | Bitmap | Size | Offset | At rest |
 |---|---|---|---|
@@ -105,7 +105,7 @@ What each display object draws during a panel paint, with nothing playing or pre
 | 118 | 31×21 | (38,6) | hidden |
 | 159 | 100×30 | (39,7) | progress indicator, positioned by playback progress [H]; not visible at rest [V] |
 
-The parts are composed off-screen and copied as one 74×22 block. **At rest the strip is bitmap 101 with 115 and 116 drawn on it, and nothing of 159 shows** [V]: the engine's rendering of `\ARTICLE1\AMPL\` (control at panel (45,405)) matches its Wine capture exactly. Where the progress indicator goes while playing is for Phase 5.
+The parts are composed off-screen and copied as one 74×22 block. **At rest the strip is bitmap 101 with 115 and 116 drawn on it, and nothing of 159 shows** [V]: the engine's rendering of `\ARTICLE1\AMPL\` (control at panel (45,405)) matches its Wine capture exactly. Where the progress indicator goes while playing is still [H] (playback.md).
 
 **ScrollBar** (`1030:a4ea`, `1030:abc6`; positions and input in special-screens.md §3), for a rectangle (L, T, R, B) and its eight parts in data order (`LINEUP`, `LINEDOWN`, `THUMB`, `THUMBTRACK`, then the four `…ALT` pressed variants):
 - the up arrow at (L, T), at the bitmap's own size;
@@ -228,10 +228,10 @@ ChangePage replaces the page in the existing window of the same page type [C] (1
 
 A ChangePage to a **base** page, from a popup or anywhere else, closes every open popup: they are owned by the main window, or by popups that are, and the change closes the windows the main window owns (`behaviour.md` §4.3) [C]. Observed under Wine: Airplane (1538) → See Also popup (1188) → Airship hotspot → base page 3330 with no popup left [V]. A popup-to-popup ChangePage leaves the other popups open, except those owned by the changing popup [C].
 
-### 7.8 Hit-testing notes (Phase 4)
+### 7.8 Hit-testing notes
 The full rules are in `behaviour.md` (§1, §5).
 - Objects are tested from the **last to the first** in data order, so the topmost drawn object wins (`1010:0936`) [C]. Test points are in panel coordinates, and rectangles include all four edges.
-- A popup's caption strip and shadow are not part of its picture. A hit-test routine (`1020:1b1c`) classifies them: points in the caption strip at window x < 12 give one code, the rest of the strip another (dragging), and the shadow strips a third [C]. What each code does is for Phase 4.
+- A popup's caption strip and shadow are not part of its picture. A hit-test routine (`1020:1b1c`) classifies them: points in the caption strip at window x < 12 give one code, the rest of the strip another (dragging), and the shadow strips a third [C]. What each code does is in behaviour.md.
 
 ## 8. Order of events when a page opens
 
@@ -251,7 +251,7 @@ Opening a window (startup page, popup, index) [C]:
 2. Create and show the window. Its first `WM_PAINT` paints all panels.
 3. After that first paint the window posts itself a private message (`0x401`). Handling it runs the page's open events, then step 5 for each panel. For popups the order is page `on_preopen`, then the panels, then page `on_open`; for base pages, page `on_open`, then the panels. No page-level open handlers exist on the disc.
 
-**Settled state:** a page's pictures are complete after its first paint. Autostart animations then draw over them, so a settled capture of a page with an autostart animation shows animation frames (e.g. the title capture differs from `TITL0m` in (220,30)–(471,126)) [V]. Mask those areas in Phase 3 comparisons.
+**Settled state:** a page's pictures are complete after its first paint. Autostart animations then draw over them, so a settled capture of a page with an autostart animation shows animation frames (e.g. the title capture differs from `TITL0m` in (220,30)–(471,126)) [V]. Mask those areas in comparisons.
 
 **Where animation frames land** [C][V]: an animation draws through its object's **panel**: the origin is the panel's position and drawing is clipped to the panel's rectangle (`1008:5b52` → `1008:edd4`). PICS frame rectangles are therefore panel coordinates, not relative to the object's own rectangle: on base pages page (94,4) + frame rect, on the title template page (0,0) + frame rect. Example: `QCAM1M0A`'s AnimHotspot rectangle is (533,1)–(539,5), but its frames span (28,1)–(446,448) of the content panel [V]. The object's rectangle only matters for clicks. An AnimationControl's animation is the movie: its frames form the movie screen, also in panel coordinates (`playback.md`).
 
@@ -269,7 +269,7 @@ The splash picture shown while the database loads is EXE bitmap 121 (640×480), 
   - the Airplane, Workshop and "A" list base pages in Wine's visible 634×454 area: nav bar, frame and content [V];
   - the A–Z machine with its letter picture (lamp caught off) [V];
   - the Airplane popup's picture, caption strip and system box (with Wine's caption colours) [V].
-- The engine's static rendering (`packages/engine`, Phase 3), converted through the master palette, matches 351 of the 400 settled Wine captures of the reference set exactly in 634×454. The other 49 differ only by an expected difference of section 10 [V]: 23 pages whose animation stalled under Wine before its `finished` page change, 22 Principles movie pages with the movie playing (section 8), 2 popups with Wine's caption colours, 1 A–Z machine with the lamp caught on, and 1 Workshop with the title transition's leftovers (page 410962, which did reach the Workshop).
+- The engine's static rendering (`packages/engine`), converted through the master palette, matches 351 of the 400 settled Wine captures of the reference set exactly in 634×454. The other 49 differ only by an expected difference of section 10 [V]: 23 pages whose animation stalled under Wine before its `finished` page change, 22 Principles movie pages with the movie playing (section 8), 2 popups with Wine's caption colours, 1 A–Z machine with the lamp caught on, and 1 Workshop with the title transition's leftovers (page 410962, which did reach the Workshop).
 
 ## 10. What to confirm against captures
 

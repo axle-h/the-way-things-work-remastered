@@ -1,4 +1,4 @@
-// The "tap to start" gate (docs/PLAN.md Phase 5): browsers start Web Audio only from a user
+// The "tap to start" gate: browsers start Web Audio only from a user
 // gesture, so the title, whose animation is timed by its sound, waits behind a plain button.
 import type { AudioContextLike } from './audio.ts';
 

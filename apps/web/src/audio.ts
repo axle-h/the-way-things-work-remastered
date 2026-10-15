@@ -1,4 +1,4 @@
-// The engine's audio sink on Web Audio (docs/PLAN.md §3, "Audio"). The engine decodes the disc's
+// The engine's audio sink on Web Audio (docs/architecture.md, "Audio"). The engine decodes the disc's
 // MS-ADPCM and 8-bit PCM itself (@twtw/formats) and hands over clips; this turns each clip into
 // an AudioBuffer once, schedules it, and gives the engine the audio clock that animation frames
 // are timed against (docs/formats/playback.md §2).

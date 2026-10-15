@@ -307,7 +307,7 @@ export async function deriveMasks(input: MaskInput, animations: AnimationCatalog
           masks.push({
             reason: 'moviePlaying',
             rect: offset(rect, placed.x + panel.x, placed.y + panel.y),
-            detail: `AnimationControl ${object.id} strip (its look while playing is Phase 5)`,
+            detail: `AnimationControl ${object.id} strip (its look while playing is not established)`,
           });
         }
         if (object.file !== null) {

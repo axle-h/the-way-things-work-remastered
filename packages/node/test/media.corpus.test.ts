@@ -1,5 +1,5 @@
 /**
- * Corpus test (PLAN Phase 5): every sound and animation the database plays opens and plays to its
+ * Corpus test: every sound and animation the database plays opens and plays to its
  * end on a virtual clock (playback.md): PlayPics, PlayWave, AnimHotspots, navigation buttons,
  * AnimationControls, the A–Z letters and the dial sound. Each one's playing time must equal its
  * soundtrack's length (pics.md, `picsDuration`; the WAV's sample count), and every frame with a

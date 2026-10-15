@@ -1,4 +1,4 @@
-// The canvas presenter (docs/PLAN.md §3, "Scaling rules"): the canvas covers the viewport, its
+// The canvas presenter (docs/architecture.md, "Scaling rules"): the canvas covers the viewport, its
 // backing store is sized in device pixels, and the framebuffer's presented area is drawn into it
 // with nearest neighbour at the scale stage.ts chooses. The browser never resamples: the backing
 // store matches the canvas's device-pixel box one to one.

@@ -1,5 +1,5 @@
 /**
- * Where the engine's bytes come from (docs/PLAN.md §3, "Data access"). The engine never knows
+ * Where the engine's bytes come from (docs/architecture.md, "Data access"). The engine never knows
  * whether files come over HTTP, from an ISO image or from a local directory.
  *
  * Paths are relative to the disc root, use `/` separators and are matched ignoring case: the page

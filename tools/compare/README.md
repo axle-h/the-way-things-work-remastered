@@ -1,6 +1,6 @@
 # tools/compare
 
-`pnpm compare` replays the reference captures of `pnpm refcapture` (`tools/refcapture/README.md`) in the headless engine and diffs each one against our rendering (`docs/PLAN.md` §5.5). It writes an HTML report and `results.json` to `vendor/compare/` (gitignored). Nothing from the disc or the captures is ever committed.
+`pnpm compare` replays the reference captures of `pnpm refcapture` (`tools/refcapture/README.md`) in the headless engine and diffs each one against our rendering (`docs/architecture.md`, "Validation" 5). It writes an HTML report and `results.json` to `vendor/compare/` (gitignored). Nothing from the disc or the captures is ever committed.
 
 ## Usage
 
@@ -61,4 +61,4 @@ Each result in `results.json` has the status, the differing and unexplained pixe
 
 ## Tests
 
-`pnpm test` runs the unit tests on a synthetic disc (`src/test-disc.ts`, built with `@twtw/formats/testing` and `@twtw/engine/testing`): the diff and its classification, bounding boxes, the masks and whole comparisons, including replayed clicks. `src/acceptance.corpus.test.ts` compares the Phase 2 acceptance set (title still page, Workshop, A–Z machine, A–Z "A", Airplane and the Airplane popup paths) and requires zero unexplained pixels; it skips without the disc or the captures.
+`pnpm test` runs the unit tests on a synthetic disc (`src/test-disc.ts`, built with `@twtw/formats/testing` and `@twtw/engine/testing`): the diff and its classification, bounding boxes, the masks and whole comparisons, including replayed clicks. `src/acceptance.corpus.test.ts` compares the acceptance set (title still page, Workshop, A–Z machine, A–Z "A", Airplane and the Airplane popup paths) and requires zero unexplained pixels; it skips without the disc or the captures.

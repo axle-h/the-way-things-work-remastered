@@ -1,5 +1,5 @@
-// Palette PNGs of the engine's indexed pictures, for Copy, Print and "Save picture" (docs/PLAN.md
-// Phase 8). Pure: the deflate step is the platform's `CompressionStream`, which browsers and Node
+// Palette PNGs of the engine's indexed pictures, for Copy, Print and "Save picture".
+// Pure: the deflate step is the platform's `CompressionStream`, which browsers and Node
 // both have, so it runs in the unit tests too. Public PNG specification (ISO/IEC 15948): 8-bit
 // palette (colour type 3), no interlacing, filter type 0 on every row.
 import type { IndexedImage } from '@twtw/engine';

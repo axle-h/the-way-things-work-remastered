@@ -1,6 +1,6 @@
 # @twtw/desktop
 
-The desktop app (docs/PLAN.md Phase 10): Electron around the web app's own build, reading **your own disc image** of *The Way Things Work* (Dorling Kindersley, 1994). Unsigned builds for Windows, macOS and Linux are attached to the GitHub releases.
+The desktop app: Electron around the web app's own build, reading **your own disc image** of *The Way Things Work* (Dorling Kindersley, 1994). Unsigned builds for Windows, macOS and Linux are attached to the GitHub releases.
 
 **The app contains no DK content. You need your own copy of the CD**, as a disc image (`.iso`) or the CD itself in a drive. The app reads it where it is: nothing is extracted, copied or sent anywhere.
 

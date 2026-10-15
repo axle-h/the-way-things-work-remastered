@@ -3,7 +3,7 @@
  * keyboard), event dispatch and page actions, and composing it all into the indexed framebuffer.
  *
  * Behaviour follows docs/formats/behaviour.md; drawing follows rendering.md. Sound and animation
- * go through a {@link Media} (Phase 5); time-based effects through a {@link Clock}.
+ * go through a {@link Media}; time-based effects through a {@link Clock}.
  *
  * Loading is asynchronous (pictures come from a {@link DataSource}). Input and page actions run as
  * one task at a time; while a task runs the engine is **busy** (the original's hourglass) and
@@ -101,7 +101,7 @@ export interface EngineOptions {
 /** Things the engine reports to its presenter. */
 export type EngineEvent =
   /**
-   * ProductOption (behaviour.md §4.6): 1 copy, 2 print, 3 print setup (Phase 8). `page` is the
+   * ProductOption (behaviour.md §4.6): 1 copy, 2 print, 3 print setup. `page` is the
    * page recorded when the Options button was pressed, if it is still open. For copy and print,
    * `image` is that page's captioned picture (special-screens.md §4.4), in the engine's palette.
    */
@@ -1029,7 +1029,7 @@ export class Engine {
       case 'wordBox':
       case 'scrollBitmap':
       case 'scrollBar':
-        // Scroll objects have their own handling in Phase 6.
+        // Scroll objects' drags are handled on press; a plain click on them only stops media.
         this.media.stopAll();
         return;
     }

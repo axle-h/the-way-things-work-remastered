@@ -2,7 +2,7 @@
 
 The DOM-free engine. It reads the original disc through a `DataSource`, keeps what is on screen (a base page and a stack of popup windows), takes pointer and keyboard input, runs event handlers and page actions, and draws into an 8-bit indexed 640×480 framebuffer. It runs unchanged in the browser and in Node. Behaviour follows `docs/formats/behaviour.md`, drawing `docs/formats/rendering.md`; the formats come from `@twtw/formats`.
 
-Phase 4 added interaction: hit-testing, clicks, events and actions, popup ownership, the navigation bar and its history, the A–Z machine, the zoom effect, cursors and keys. Phase 5 added sound and animation playback (`docs/formats/playback.md`): `PlaybackMedia` behind the `Media` hooks, timed by an audio sink's clock. Phase 6 adds the special screens (`docs/formats/special-screens.md`): the Index page's controls, the Help pages' scroll bars, the copy and print picture, and the coverage table of every type.
+It handles interaction: hit-testing, clicks, events and actions, popup ownership, the navigation bar and its history, the A–Z machine, the zoom effect, cursors and keys. It plays sounds and animations (`docs/formats/playback.md`): `PlaybackMedia` behind the `Media` hooks, timed by an audio sink's clock. It draws the special screens (`docs/formats/special-screens.md`): the Index page's controls, the Help pages' scroll bars, the copy and print picture, and the coverage table of every type.
 
 ## Using it
 
@@ -30,7 +30,7 @@ requestAnimationFrame(function frame() {
 - **Time**: a `Clock` (`now`, `wait`) drives the zoom outlines and the A–Z lamp. The default `VirtualClock` jumps ahead whenever something waits, so headless use never blocks; the web app passes the browser's clock. `update()` advances time-based state and says whether to render again.
 - **Media** (`Media`): `isPlaying`, `stopAll` (the rule "a click while something plays only stops it"), `runAction` (PlayWave, PlayPics, …), `playAnimation` (AnimHotspot clicks and autostart, nav buttons, the A–Z letter; `ended` fires the finished event or continues the navigation, `stopped` frees the dial), `control` (AnimationControl clicks and SendMessage), `pageOpened`/`pageClosed`, and for timing `update`, `nextEventDelay`, `loading`. `PlaybackMedia` plays the disc (below). `SilentMedia` plays nothing; its animations end at once (or never, with `stalledAutostartMedia()` for rendering pages as they open, as Wine's captures show them).
 - **Settling** (`settle(limitMs)`): runs an advancing clock (`VirtualClock`, `ManualClock`) on until everything has played out and no input or page action is pending: the true settled state, e.g. the title chain arriving at the still title. On a `VirtualClock`, input that waits for an animation (a nav button) also moves the clock on by itself, so `await engine.pointerUp(…)` returns once the button has acted.
-- **Events** (`on`): `productOption` (copy, print, print setup; Phase 8 copies and prints; for copy and print it carries `image`, the page's captioned picture), `quit` (Alt+F4 in the main window), `actionFailed`, `error`.
+- **Events** (`on`): `productOption` (copy, print, print setup; for copy and print it carries `image`, the page's captioned picture), `quit` (Alt+F4 in the main window), `actionFailed`, `error`.
 - **Copy and print picture** (`copyImage(page)`, special-screens.md §4.4): the page's panels at rest plus a 40-row white band with the program's copyright line (`content.copyright`, string 5000 of `TWTW.EXE`), as an indexed image in `palette`.
 
 ## Playback

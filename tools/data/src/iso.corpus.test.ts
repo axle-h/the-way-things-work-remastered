@@ -1,5 +1,5 @@
 /**
- * Corpus test (PLAN §5.3): reads the real disc image with the TypeScript ISO 9660 reader and
+ * Corpus test (docs/architecture.md, "Validation" 3): reads the real disc image with the TypeScript ISO 9660 reader and
  * compares every file, byte for byte, with the extracted disc in vendor/cd (or $TWTW_CD). The
  * image is $TWTW_ISO, or the only `.iso` in vendor/. Skips when either is absent, as on CI.
  */

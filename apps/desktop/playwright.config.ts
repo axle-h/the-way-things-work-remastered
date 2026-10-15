@@ -1,4 +1,4 @@
-// Desktop smoke tests (docs/PLAN.md Phase 10): `pnpm --filter @twtw/desktop test:e2e` drives the
+// Desktop smoke tests: `pnpm --filter @twtw/desktop test:e2e` drives the
 // built app (dist/app, from `pnpm --filter @twtw/desktop build`) in Electron through Playwright. The
 // chooser tests use synthetic files; the tests with the disc need its image ($TWTW_ISO, or the only
 // .iso in vendor/) and skip without it. Electron needs a display: on Linux without one, run it under

@@ -6,7 +6,7 @@ This is a clean-room TypeScript re-implementation of the engine for DK's *The Wa
 - **Desktop app:** a bring-your-own-ISO Electron app, published on GitHub, built in the last phase.
 - **The repository is public.**
 
-Read first: `docs/PLAN.md` (plan, phases, status), `docs/CLEAN_ROOM.md` (rules for using reverse engineering), `docs/formats/` (specs to implement from) and `docs/reference-environments.md` (running the original).
+Read first: `docs/architecture.md` (architecture, scaling, dependency policy, validation, decisions), `docs/CLEAN_ROOM.md` (rules for using reverse engineering), `docs/formats/` (specs to implement from) and `docs/reference-environments.md` (running the original).
 
 ## Hard rules
 
@@ -17,18 +17,18 @@ Read first: `docs/PLAN.md` (plan, phases, status), `docs/CLEAN_ROOM.md` (rules f
 - **No disc bytes in git.** `vendor/` (gitignored) holds the ISO, the extracted disc (`vendor/cd`), the Wine prefix, the DOSBox-X disk images, patched binaries and reference captures. Tests, fixtures, snapshots and docs must not contain disc-derived content. Unit tests use synthetic data. Corpus tests read `vendor/cd` (or `$TWTW_CD`) and skip when it is absent.
 - **The original program is data, never code**, in the remake. Parse `TWTW.EXE` as an NE resource container only. It runs only in the reference environments.
 - **Git is read-only** unless Alex explicitly asks: no commit, reset, rebase, etc.
-- **Follow the approved plan** (`docs/PLAN.md`): work through the phases in order, and check with Alex before changing scope or architecture.
+- **Follow the architecture** (`docs/architecture.md`): check with Alex before changing scope or architecture.
 - **Kill only processes you started.** `pkill -f winevdm` matches your own shell; use `pkill -f '[w]inevdm.exe'`.
 - **Never publish the deployment hostname**, nor Alex's other hostnames or home IP. They must not appear anywhere in the repo, commit messages or CI output. `k8s/host.local` and `$TWTW_HOST` stay out of git.
 
 ## Conventions
 
-- **Stack:** TypeScript strict, **pnpm** workspaces (never npm or yarn; follow PLAN §3 "Dependency policy": frozen lockfile, install scripts blocked unless allow-listed, minimum release age, exact versions), Vitest, Vite.
+- **Stack:** TypeScript strict, **pnpm** workspaces (never npm or yarn; follow docs/architecture.md, "Dependency policy": frozen lockfile, install scripts blocked unless allow-listed, minimum release age, exact versions), Vitest, Vite.
 - **DOM-free core:** `packages/formats` and `packages/engine` must not use DOM APIs, so they run headless in Node for pixel tests.
 - **Indexed rendering:** the engine renders into an 8-bit indexed 640×480 framebuffer; conversion to RGBA happens only in `apps/web` or the compare tool.
 - **Original files only:** decode the original disc files at runtime and do not add asset conversion pipelines.
 - **DataSource:** all file access goes through the `DataSource` interface (HTTP + manifest for the web app, ISO 9660 for the desktop app). Lookups ignore case, because database names are mixed case and disc files are upper case.
-- **Scaling:** never let the browser resample, and never smooth. Use integer nearest-neighbour scaling in device pixels (PLAN §3 "Scaling rules").
+- **Scaling:** never let the browser resample, and never smooth. Use integer nearest-neighbour scaling in device pixels (docs/architecture.md, "Scaling rules").
 - **Byte order:** the page database (`TWTW.PNG`) is big-endian; `.ANI`, `.DIB` and `.WAV` are little-endian.
 - **Unknown fields:** keep them as `unknownN` values instead of dropping them.
 - **Specs:** mark findings in `docs/formats/` as [V] verified, [C] read from code, or [H] hypothesis.

@@ -1,4 +1,4 @@
-// Desktop smoke tests (docs/PLAN.md Phase 10): the first run shows the disc chooser, which turns down
+// Desktop smoke tests: the first run shows the disc chooser, which turns down
 // files that are not the disc; with the disc image, the app plays the title, reaches a page through a
 // hotspot, copies to the system clipboard, remembers the disc and changes it from the settings. The
 // system file dialog is replaced, in the main process, by one that answers with a given path.

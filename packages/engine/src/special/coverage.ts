@@ -1,6 +1,6 @@
 /**
  * What the engine does with each type the page database defines (special-screens.md §8, the
- * Phase 6 coverage table): every page, panel, object, action and event type, and the template
+ * coverage table): every page, panel, object, action and event type, and the template
  * fields, is implemented or consciously dropped. Corpus tests check that every type occurring on
  * the disc is implemented.
  */

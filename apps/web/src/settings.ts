@@ -1,4 +1,4 @@
-// The presentation settings (docs/PLAN.md Phase 7): fill mode, volume and the debug overlay,
+// The presentation settings: fill mode, volume and the debug overlay,
 // remembered in this browser only. Storage can be missing or throw (private windows, blocked site
 // data); the app then works with the defaults.
 

@@ -77,7 +77,7 @@ let warnedShrink = false;
 
 /**
  * The debug overlay, when turned on in the settings. A stage below native size always shows its
- * scale line, so that it is noticed (docs/PLAN.md §3, "Scaling rules" 2).
+ * scale line, so that it is noticed (docs/architecture.md, "Scaling rules" 2).
  */
 function updateStatus(): void {
   const scale = describeLayout(presenter.layout, window.devicePixelRatio || 1);
@@ -97,7 +97,7 @@ presenter.onLayout((layout: StageLayout) => {
 });
 updateStatus();
 
-/** Copy and Print (Phase 8): the clipboard, the fallback picture, the print-only element. */
+/** Copy and Print: the clipboard, the fallback picture, the print-only element. */
 const output = new PictureOutput(findPictureOutput(), { writeClipboardPng: host.writeClipboardPng });
 
 const menu = attachSettingsMenu(findSettingsMenu(), settings, (next) => {

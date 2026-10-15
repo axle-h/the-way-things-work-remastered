@@ -1,5 +1,5 @@
 /**
- * Independent comparison (docs/PLAN.md §5.3): our DIB decoder against Pillow, a public decoder,
+ * Independent comparison (docs/architecture.md, "Validation" 3): our DIB decoder against Pillow, a public decoder,
  * on every `.DIB` on the disc and every bitmap resource in `TWTW.EXE`. Resources are headerless, so
  * they are given a `BITMAPFILEHEADER` before Pillow sees them. Only hashes of the outputs are
  * compared. Skips when the disc, `python3` or Pillow is absent.

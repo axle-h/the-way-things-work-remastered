@@ -1,4 +1,4 @@
-// Device checks (docs/PLAN.md §5.7): `pnpm test:devices`. Runs the dev server, which serves the
+// Device checks (docs/architecture.md, "Validation" 7): `pnpm test:devices`. Runs the dev server, which serves the
 // extracted disc under /data, on a high port, and drives Chromium at desktop, tablet and phone
 // viewports. Without the disc the tests skip.
 import { defineConfig } from '@playwright/test';

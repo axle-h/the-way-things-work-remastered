@@ -326,7 +326,7 @@ class ObjectLoader {
       case 'navHotspot':
       case 'animHotspot':
       case 'azAnimHotspot':
-        // Nothing at rest; animations draw only while they play (Phase 5).
+        // Nothing at rest; animations draw only while they play.
         return { object, rect, look: null };
     }
   }

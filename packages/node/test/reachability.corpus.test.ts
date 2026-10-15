@@ -1,5 +1,5 @@
 /**
- * Corpus test (PLAN Phase 4, "Done when"): every base page can be reached from the title by
+ * Corpus test: every base page can be reached from the title by
  * clicking. A breadth-first search over what is on screen starts at the startup page and clicks,
  * through the engine's own hit-testing and input, every object that can do something, in every
  * state it reaches. Animations end at once (no media yet), so pages that move on when their

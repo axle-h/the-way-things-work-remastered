@@ -1,6 +1,6 @@
-// The settings menu (docs/PLAN.md Phase 7): a gear button in a corner, outside the original's
-// picture, opening a small panel with fill mode, volume, full screen, Copy and Print (Phase 8,
-// wired in main.ts once the engine runs) and the debug overlay.
+// The settings menu: a gear button in a corner, outside the original's
+// picture, opening a small panel with fill mode, volume, full screen, Copy and Print (wired
+// in main.ts once the engine runs) and the debug overlay.
 import type { Settings } from './settings.ts';
 import { PORTRAIT_PHONE_MAX_WIDTH as PHONE_MAX_SHORT_SIDE } from './stage.ts';
 
@@ -78,7 +78,7 @@ export function attachSettingsMenu(
   });
 
   // Full screen where the browser has it; iPhone Safari has none, so the hint offers the
-  // installed web app instead (docs/PLAN.md §3, "Responsive input").
+  // installed web app instead (docs/architecture.md, "Responsive input").
   const updateFullscreenButton = (): void => {
     const available = fullscreenAvailable();
     fullscreen.hidden = !available;

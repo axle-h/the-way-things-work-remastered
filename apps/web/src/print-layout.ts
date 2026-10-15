@@ -1,4 +1,4 @@
-// Sizes and placement for Copy and Print (docs/PLAN.md Phase 8; special-screens.md §4.4–4.8).
+// Sizes and placement for Copy and Print (special-screens.md §4.4–4.8).
 // Pure and unit-tested; `picture-output.ts` applies them to the DOM.
 
 /**
@@ -90,7 +90,7 @@ const round = (value: number): number => Math.round(value * 1e4) / 1e4;
 
 /**
  * The scale at which the copy fallback shows a `width` × `height` picture in `availableWidth` ×
- * `availableHeight` device pixels: the largest whole scale that fits, as the stage does (PLAN §3,
+ * `availableHeight` device pixels: the largest whole scale that fits, as the stage does (docs/architecture.md,
  * "Scaling rules"), or below 1× the largest that fits.
  */
 export function previewScale(

@@ -5,7 +5,7 @@ A clean-room TypeScript re-implementation of the engine behind Dorling Kindersle
 **This repository, and every build and release made from it, contains no DK or Microsoft code or content. You need your own copy of the CD**: the web app serves an extracted copy of it, and the desktop app reads your disc image (`.iso`) or the CD itself.
 
 - **Status:** all phases implemented (2026-10-15). The web app plays the whole disc and is deployed on k3s; the desktop app (bring your own ISO) builds for Linux, Windows and macOS. Still to do by hand: playtests on real tablets and phones, Safari/Firefox printing, and running the Windows and macOS desktop builds.
-- **Plan:** [docs/PLAN.md](docs/PLAN.md), the step-by-step roadmap.
+- **Architecture:** [docs/architecture.md](docs/architecture.md), how it is built and checked, and the decisions behind it.
 - **Clean-room policy:** [docs/CLEAN_ROOM.md](docs/CLEAN_ROOM.md), how the formats are learned without copying code.
 - **Format specifications:** [docs/formats/](docs/formats/README.md), every format on the disc and its status.
 

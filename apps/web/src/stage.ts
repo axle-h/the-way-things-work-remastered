@@ -1,5 +1,5 @@
 // How the framebuffer is scaled onto the screen, and the one place where pointer positions are
-// turned back into framebuffer (page) coordinates (docs/PLAN.md §3, "Scaling rules"). Pure maths
+// turned back into framebuffer (page) coordinates (docs/architecture.md, "Scaling rules"). Pure maths
 // in device pixels, so it is tested in Node.
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from '@twtw/engine';
 

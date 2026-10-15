@@ -1,6 +1,6 @@
 # Playback: sounds and animations
 
-How the original program plays `.WAV` sounds and `.ANI` (PICS) animations: the players, how animation frames are timed against the sound, what starts, queues, stops and ends playback, and the objects built on it (AnimHotspot, NavHotspot, AnimationControl, the A–Z letters). It is written for Phase 5 (media). The file formats are in [wav.md](wav.md) and [pics.md](pics.md); input rules that start or stop playback are in [behaviour.md](behaviour.md). Markers: [V] verified, [C] read from the code, [H] hypothesis. Addresses are provenance only.
+How the original program plays `.WAV` sounds and `.ANI` (PICS) animations: the players, how animation frames are timed against the sound, what starts, queues, stops and ends playback, and the objects built on it (AnimHotspot, NavHotspot, AnimationControl, the A–Z letters). The file formats are in [wav.md](wav.md) and [pics.md](pics.md); input rules that start or stop playback are in [behaviour.md](behaviour.md). Markers: [V] verified, [C] read from the code, [H] hypothesis. Addresses are provenance only.
 
 ## Rules in short
 
