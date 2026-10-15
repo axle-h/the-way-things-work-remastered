@@ -22,10 +22,16 @@ pnpm refcapture index                   # rebuild vendor/ref/index.json
 ```
 
 - **Pages** are heap offsets (`1538`, `0x602`), media directories (`'\ARTICLE1\AIRP\'`) or the names `title`, `workshop`, `az-machine`, `az-a` (the page the A–Z dial opens for "A") and `airplane`. Only base pages can be start pages.
-- **Steps** are database object references, `page:panel:object`. `object` is the object's position in the panel's object list, because object ids repeat. The page must be the base page or the popup on top. `pnpm refcapture list 1538` prints the clickable objects of a page in this form. Example, the Airplane article's "Control column" label:
+- **Steps** are database object references, `page:panel:object`. `object` is the object's position in the panel's object list, because object ids repeat. The page must be the base page or the popup on top. `pnpm refcapture list 1538` prints the clickable objects of a page in this form, the navigation bar's buttons included (shared panel 849). Example, the Airplane article's "Control column" label:
 
   ```
   pnpm refcapture path airplane 1538:1:11
+  ```
+
+  Navigation buttons are steps too. The harness predicts their effect from the NavPanel table (page-database.md) and the history rules (behaviour.md §6): the page links of the base page, "go to" (change to a base page, open anything else), and Back through the base pages changed to so far. A direct start records no history, so Back right after it does nothing (and leaves the program busy). Workshop → Machines → Back from the Airplane:
+
+  ```
+  pnpm refcapture path airplane 1538:849:1 438408:849:2 57508:849:6
   ```
 
 - `page`, `path`, `popups`, `acceptance` and `crawl` start Xwayland when it is not running and stop it again at the end, unless `--keep-env` is given. They skip captures that exist; `--force` captures again. Other options: `--stable-ms`, `--advance-stable-ms`, `--timeout-ms`, `--launch-timeout-ms`, `--no-resize`, `--name` (file name of the last `path` capture), `--limit` (crawl). `pnpm refcapture --help` lists them.
@@ -35,10 +41,10 @@ pnpm refcapture index                   # rebuild vendor/ref/index.json
 
 1. Writes a launch copy under `vendor/rc/run/`: the palette-patched `TWTW.EXE` and a copy of `TWTW.PNG` whose startup page is the start page.
 2. Starts it with Wine on the nested display (`DISPLAY=:5`, no `WAYLAND_DISPLAY`) and waits for the window "The Way Things Work" in the X window tree to appear and stop moving.
-3. Resizes that X window to 638×459, the Windows 3.1 client size; Wine's own frame metrics leave only 634×454 (see the reference-environments doc).
+3. Sets the window's `WM_STATE` to NormalState, as a window manager would, and resizes it to 638×459, the Windows 3.1 client size; Wine's own frame metrics leave only 634×454, and without `WM_STATE` Wine ignores the resize (see "Client area size" in the reference-environments doc).
 4. Parks the pointer at (5,5) and streams the client rectangle with `ffmpeg -f x11grab -draw_mouse 0` (10 frames per second). Popups are separate X windows inside that rectangle, so the grab includes them.
 5. Waits for the **settled state**: no frame it has not already seen for 1.5 s (4 s for pages the database says move on by themselves), with a 30 s timeout. A screen that keeps cycling through known frames, such as the A–Z machine's blinking light, counts as settled; the kept frame is the last new one.
-6. For a path, clicks each step at client origin + panel position + a point of the object's rectangle (its centre, or the nearest point not covered by another clickable object of the panel), then waits for the settled state again.
+6. For a path, clicks each step at client origin + panel position + a point of the object's rectangle (its centre, or the nearest point not covered by another clickable object of the panel), then waits for the settled state again (4 s without a new frame after a nav button, whose press-in animation pauses longer).
 7. Closes the program with `WM_DELETE_WINDOW`. If it does not exit, the harness kills the `winevdm.exe` processes running its launch copy, and as a last resort runs `wineserver -k` for the prefix.
 
 ## Output
@@ -64,7 +70,9 @@ Each PNG is the client area in RGB, 638×459 (or Wine's 634×454 with `--no-resi
 | `autoAdvance`, `expectedSettledPage`, `settledDiffersFromRequested` | the chain of pages an autostart animation's `finished` ChangePage leads to, and the page expected once settled |
 | `settle` | `settled`, `timedOut`, frame counts, `msUntilStable`, `cycleFrames` (distinct frames still alternating) and `changingRect` (where they differ), plus the thresholds used |
 | `clientRect`, `resizedFrom` | the client rectangle on the X screen, and Wine's size before the resize |
+| `wineClient` | the program's client size as Wine reports it at capture time (`WM_NORMAL_HINTS`); 638×459 when every pixel of the capture is the program's. Missing in captures made before the `WM_STATE` fix, whose strips beyond 634×454 are black |
 | `otherWindows` | other top-level X windows at capture time: popups, or an unexpected dialog |
+| `whitePopups` | ids of the `otherWindows` whose picture Wine loses, so they show white (their size crosses Wine's 128-pixel surface steps; see "Popups that stay white" in the reference-environments doc) |
 | `capturedAt`, `timings` | when, and how long the launch and the settling took |
 | `environment` | Wine version, display, screen size, and the palette and startup patches |
 

@@ -14,7 +14,7 @@ import {
 import { join } from 'node:path';
 import { sleep } from './env.ts';
 import { cdDir, launchDir, patchedExe, runDir, winePrefix } from './paths.ts';
-import type { XHelper, XWindow } from './x.ts';
+import type { Size, XHelper, XWindow } from './x.ts';
 
 export const WINDOW_TITLE = 'The Way Things Work';
 
@@ -154,25 +154,37 @@ export async function waitForMainWindow(
 }
 
 /**
- * Resizes the main window's X window to the Windows 3.1 client size. Wine treats the window as
- * managed and follows the ConfigureNotify, so the program's client area grows and it repaints the
- * strips Wine's larger frame had cut off (docs/reference-environments.md, "Client area size").
+ * Resizes the main window's X window to the Windows 3.1 client size and returns the window with
+ * the client size Wine itself then reports.
+ *
+ * Wine 11 applies a ConfigureNotify it did not request only once a window manager has answered
+ * the WM_STATE it asked for when mapping the window. There is no window manager on the nested
+ * server, so the harness first sets WM_STATE to NormalState itself; without that, the X window
+ * grows but the program's client stays 634×454 and the new strips stay black. Wine sets the
+ * WM_NORMAL_HINTS minimum and maximum of a fixed-size window to its client size, which tells us
+ * whether the program's client really grew (docs/reference-environments.md, "Client area size").
  */
-export async function resizeToWin31(x: XHelper, window: XWindow): Promise<XWindow> {
-  if (window.width === WIN31_CLIENT.width && window.height === WIN31_CLIENT.height) return window;
+export async function resizeToWin31(
+  x: XHelper,
+  window: XWindow,
+): Promise<{ window: XWindow; wineClient: Size | null }> {
+  await x.normal(window.id);
+  await sleep(100);
   await x.resize(window.id, WIN31_CLIENT.width, WIN31_CLIENT.height);
+  let current: XWindow | undefined = window;
+  let wineClient: Size | null = null;
   for (let i = 0; i < 30; i++) {
     await sleep(100);
-    const current = findMainWindow(await x.windows());
-    if (
-      current !== undefined &&
-      current.width === WIN31_CLIENT.width &&
-      current.height === WIN31_CLIENT.height
-    ) {
-      return current;
-    }
+    current = findMainWindow(await x.windows());
+    if (current === undefined) continue;
+    wineClient = (await x.sizeHints(current.id)).max;
+    if (isWin31Size(current) && wineClient !== null && isWin31Size(wineClient)) break;
   }
-  return findMainWindow(await x.windows()) ?? window;
+  return { window: current ?? window, wineClient };
+}
+
+function isWin31Size(size: Size): boolean {
+  return size.width === WIN31_CLIENT.width && size.height === WIN31_CLIENT.height;
 }
 
 /** Closes the program: WM_DELETE_WINDOW first, then SIGKILL, then `wineserver -k` for our prefix. */

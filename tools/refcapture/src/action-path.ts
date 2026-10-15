@@ -3,6 +3,7 @@
 import {
   HandlerEvent,
   type DisplayObject,
+  type NavPanel,
   type Page,
   type PageDatabase,
   type PageRef,
@@ -68,6 +69,25 @@ export type PopupPlacement = (origin: Point) => Point;
 
 export const WINE_POPUP_PLACEMENT: PopupPlacement = ({ x, y }) => ({ x: x + 91, y: y + 9 });
 
+/** Wine sizes a window's backing surface in steps of 128 pixels (win32u `get_surface_rect`). */
+const WINE_SURFACE_STEP = 128;
+/** The program shrinks a new popup by its 4-pixel shadow and grows it back (rendering.md §7). */
+const POPUP_SHADOW = 4;
+
+/**
+ * Whether Wine loses a new popup's picture, leaving it white [V]: when shrinking the window by
+ * the shadow width changes its surface size in either direction, Wine replaces the surface, and
+ * growing the window back without a repaint leaves a fresh white surface behind
+ * (docs/reference-environments.md, "Popups that stay white"). `size` is the popup's X window.
+ */
+export function wineLosesPopupPicture(size: { readonly width: number; readonly height: number }): boolean {
+  const steps = (length: number) => Math.max(1, Math.ceil(length / WINE_SURFACE_STEP));
+  return (
+    steps(size.width) !== steps(size.width - POPUP_SHADOW) ||
+    steps(size.height) !== steps(size.height - POPUP_SHADOW)
+  );
+}
+
 export interface ResolveOptions {
   /** The client area size; click points are kept inside it. */
   readonly clientSize: { readonly width: number; readonly height: number };
@@ -122,6 +142,8 @@ export function locatePanels(db: PageDatabase, page: Page): LocatedPanel[] {
 export function resolvePath(db: PageDatabase, path: ActionPath, options: ResolveOptions): ResolvedStep[] {
   const placement = options.popupPlacement ?? WINE_POPUP_PLACEMENT;
   let state: ScreenState = { base: path.start, popups: [] };
+  // The program's history of base pages; a direct start records nothing (behaviour.md §6.3).
+  const history: PageRef[] = [];
   return path.steps.map((step) => {
     const top = state.popups.at(-1) ?? state.base;
     if (step.page !== top && step.page !== state.base) {
@@ -153,9 +175,18 @@ export function resolvePath(db: PageDatabase, path: ActionPath, options: Resolve
       bottom: options.clientSize.height - panelOrigin.y,
     };
     const choice = clickPoint(object.rect, obstacles, visible);
-    const covered = step.page === state.base && state.popups.length > 0;
-    const effect: StepEffect = covered ? { kind: 'closePopups' } : clickEffect(located.panel, object);
+    // Display panels close the page's popups first; the nav bar and the A–Z dial do not (§1.5, §1.6).
+    const covered = step.page === state.base && state.popups.length > 0 && located.panel.kind === 'display';
+    const effect: StepEffect = covered
+      ? { kind: 'closePopups' }
+      : located.panel.kind === 'navPanel' && object.kind === 'navHotspot'
+        ? navButtonEffect(db, located.panel, object.id, state, history)
+        : clickEffect(object);
     state = applyEffect(state, effect);
+    if (effect.kind === 'changePage' && db.getPage(effect.page).pageType === 'base') {
+      if (history.at(-1) !== effect.page) history.push(effect.page);
+      if (history.length > HISTORY_LIMIT) history.shift();
+    }
     return {
       step,
       objectId: object.id,
@@ -170,13 +201,73 @@ export function resolvePath(db: PageDatabase, path: ActionPath, options: Resolve
   });
 }
 
-/** What clicking an object does according to the database (the first page action of its click handlers). */
-export function clickEffect(panel: Panel, object: DisplayObject): StepEffect {
-  if (panel.kind === 'navPanel' && object.kind === 'navHotspot') {
-    // [H] each NavHotspot leads to the page listed for its id in the NavPanel.
-    const page = panel.buttonPages[panel.buttonIds.indexOf(object.id)];
-    if (page !== undefined && page !== null) return { kind: 'changePage', page };
+/** The program keeps at most this many base pages in its history (behaviour.md §6.3). */
+const HISTORY_LIMIT = 32;
+
+/** The navigation buttons in NavPanel order (page-database.md, NavPanel). */
+export const NAV_BUTTONS = [
+  'Workshop',
+  'Machines',
+  'Principles',
+  'History',
+  'Inventors',
+  'Back',
+  'Index',
+  'Help',
+  'Options',
+] as const;
+
+/**
+ * What pressing a navigation button does (page-database.md, NavPanel; behaviour.md §6). Button
+ * *k* is the NavHotspot whose id is the panel's *k*-th button id. "Going to" a page changes to it
+ * if it is a base page and opens it otherwise. Back with fewer than two history entries does
+ * nothing (and leaves the program busy, §6.3); `history` is the base pages recorded so far.
+ */
+export function navButtonEffect(
+  db: PageDatabase,
+  panel: NavPanel,
+  objectId: number,
+  state: ScreenState,
+  history: PageRef[],
+): StepEffect {
+  const button = panel.buttonIds.indexOf(objectId);
+  const links = db.getPage(state.base).links;
+  const goTo = (page: PageRef | null | undefined): StepEffect =>
+    page === null || page === undefined
+      ? { kind: 'none' }
+      : { kind: db.getPage(page).pageType === 'base' ? 'changePage' : 'openPage', page };
+  const pages = panel.buttonPages;
+  switch (NAV_BUTTONS[button]) {
+    case 'Workshop':
+      return goTo(pages[0]);
+    case 'Machines':
+      return goTo(links !== null ? links[1] : pages[2]);
+    case 'Principles':
+      return goTo(links !== null ? links[0] : pages[1]);
+    case 'History':
+      return goTo(links !== null ? links[3] : pages[4]);
+    case 'Inventors':
+      return goTo(links !== null ? links[2] : pages[3]);
+    case 'Back': {
+      if (history.length < 2) return { kind: 'none' };
+      history.pop();
+      return goTo(history.pop());
+    }
+    case 'Index':
+      return goTo(pages[7]);
+    case 'Help':
+      return goTo(pages[8]);
+    case 'Options':
+      return pages[5] === null || pages[5] === undefined
+        ? { kind: 'none' }
+        : { kind: 'openPage', page: pages[5] };
+    default:
+      return { kind: 'none' };
   }
+}
+
+/** What clicking an object does according to the database (the first page action of its click handlers). */
+export function clickEffect(object: DisplayObject): StepEffect {
   if (!('handlers' in object)) return { kind: 'none' };
   for (const action of actionsFor(object.handlers, HandlerEvent.Click)) {
     if (

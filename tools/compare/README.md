@@ -21,12 +21,12 @@ Open `vendor/compare/index.html`: totals, the expected differences by reason, an
 
 1. **Replay.** Show the capture's start page, then apply each click step. The engine has no input dispatch yet, so `src/step-dispatch.ts` reads what the clicked object does from the database (the first page action of its click handlers, or the NavPanel button's page) and calls `changePage`, `openPopup` or `closePopup`. A click on the base page while a popup is open only closes the popup, and a ChangePage to a base page closes the popups (both seen under Wine). The effect must agree with the one refcapture recorded, and the final state with its prediction; otherwise the capture is an error. Phase 4 replaces this module with the engine's own hit-testing and dispatch.
 2. **Render** with the `wine` presentation (popup placement, shadow over white, nearest-colour captions) and convert through the master palette.
-3. **Diff** the client area: 638×459, or 634×454 when the capture is black beyond Wine's own client (as all current captures are), or the overlap with an older 634×454 capture.
+3. **Diff** the client area: 638×459 when the sidecar's `wineClient` says Wine's client covered the whole capture (refcapture records it since it sets `WM_STATE`, reference-environments.md "Client area size"); otherwise 638×459 unless the capture is black beyond 634×454 (as in captures made before that fix), then 634×454; or the overlap with an older 634×454 capture.
 4. **Classify** every differing pixel by the first mask that covers it (`src/masks.ts`), derived from the database, the engine's state and the sidecar. Anything else is unexplained.
 
 | Reason | Where | Pixels it explains |
 |---|---|---|
-| `wineClientStrip` | columns 634–637, rows 454–458 | black in the reference |
+| `wineClientStrip` | columns 634–637, rows 454–458, unless the sidecar's `wineClient` covers them | black in the reference |
 | `wineCaptionColour` | each popup's 8-pixel caption strip | Wine's `9E9E9E` and `3296FA`, which the palette lacks (rendering.md §7.3) |
 | `azLamp` | the A–Z dial's lamp | any (it blinks, rendering.md §6) |
 | `moviePlaying` | the AnimationControl strip addressed by a panel's on_open SENDMESSAGE, and its animation's frames | strip: any; frames: colours a frame paints there |

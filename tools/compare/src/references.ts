@@ -36,6 +36,10 @@ export interface Sidecar {
     readonly changingRect?: Rect | null;
   };
   readonly resizedFrom: { readonly width: number; readonly height: number } | null;
+  /** The program's client size as Wine reported it (refcapture records it since the WM_STATE fix). */
+  readonly wineClient?: { readonly width: number; readonly height: number } | null;
+  /** X windows (popups) whose picture Wine lost, so they show white (refcapture README). */
+  readonly whitePopups?: readonly number[];
   readonly environment: { readonly kind: string; readonly palettePatch: boolean };
 }
 

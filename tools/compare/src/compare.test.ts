@@ -164,6 +164,32 @@ describe('Comparator', () => {
     expect(result.notes.join()).toMatch(/634×454/);
   });
 
+  it("compares all of 638×459 when the sidecar says Wine's client covered it", async () => {
+    const state = { base: ref('other'), popups: [] };
+    const image = await rendering(state);
+    for (let y = 0; y < 459; y++)
+      for (let x = 0; x < 638; x++) if (x >= 634 || y >= 454) setPixel(image, x, y, 0);
+    const { result } = await comparator.compare(
+      capture(image, {
+        page: ref('other'),
+        expectedState: state,
+        wineClient: { width: 638, height: 459 },
+      }),
+    );
+    expect(result).toMatchObject({ area: { width: 638, height: 459 } });
+    expect(result.byReason.wineClientStrip).toBeUndefined();
+    // Black there is then a real difference wherever our page is not black.
+    const ours = await rendering(state);
+    let differing = 0;
+    for (let y = 0; y < 459; y++)
+      for (let x = 0; x < 638; x++) {
+        const at = (y * 638 + x) * 3;
+        if ((x >= 634 || y >= 454) && ours.rgb[at]! + ours.rgb[at + 1]! + ours.rgb[at + 2]! > 0) differing++;
+      }
+    expect(differing).toBeGreaterThan(0);
+    expect(result.unexplained).toBe(differing);
+  });
+
   it('explains a page that stalled part-way through its autostart animation', async () => {
     const state = { base: ref('intro'), popups: [] };
     const image = await rendering(state);

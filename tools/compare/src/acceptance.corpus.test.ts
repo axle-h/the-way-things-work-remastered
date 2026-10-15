@@ -15,6 +15,8 @@ import { listReferences, type Reference } from './references.ts';
 /** Title still page, Workshop, A–Z machine, A–Z "A" list, Airplane. */
 const ACCEPTANCE_PAGES = [410886, 438408, 57508, 8124, 1538];
 const AIRPLANE = 1538;
+/** The shared navigation bar's panel id: nav-button paths are not part of the acceptance set. */
+const NAV_PANEL = 849;
 
 const missing = !existsSync(join(discRoot, ...DATABASE_PATH.split('/')))
   ? `${DATABASE_PATH} not found under ${discRoot} (extract the disc with \`pnpm data\` or set TWTW_CD)`
@@ -51,8 +53,13 @@ if (missing !== null) {
     });
 
     it('the Airplane popup paths match, every difference explained', async () => {
+      // Popups whose picture Wine lost (white) are a Wine artifact (reference-environments.md).
       const paths = find(
-        (r) => r.sidecar.kind === 'path' && r.sidecar.actionPath.start === AIRPLANE,
+        (r) =>
+          r.sidecar.kind === 'path' &&
+          r.sidecar.actionPath.start === AIRPLANE &&
+          r.sidecar.actionPath.steps.every((step) => step.panel !== NAV_PANEL) &&
+          (r.sidecar.whitePopups ?? []).length === 0,
         'a path from the Airplane article',
       );
       expect(paths.some((r) => r.sidecar.pageType === 'popup')).toBe(true);

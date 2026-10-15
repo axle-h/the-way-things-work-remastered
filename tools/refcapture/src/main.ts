@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { parsePageDatabase, type PageDatabase } from '@twtw/formats';
-import { parseStep, type ActionPath } from './action-path.ts';
+import { NAV_BUTTONS, locatePanels, parseStep, type ActionPath } from './action-path.ts';
 import { checkWineSetup, killWineServer, ourProgramProcesses, stopProgram } from './app.ts';
 import {
   DEFAULT_OPTIONS,
@@ -165,8 +165,15 @@ async function main(): Promise<void> {
       }
       const page = db.getPage(resolvePage(db, args[0]!));
       console.log(`page ${page.ref} (${page.pageType}) ${page.directory ?? ''}`);
-      for (const panel of page.panels) {
+      for (const { panel } of locatePanels(db, page)) {
         panel.objects.forEach((object, index) => {
+          if (panel.kind === 'navPanel' && object.kind === 'navHotspot') {
+            const button = NAV_BUTTONS[panel.buttonIds.indexOf(object.id)] ?? '?';
+            console.log(
+              `  ${page.ref}:${panel.id}:${index}\tnav button ${button} ${JSON.stringify(object.rect)}`,
+            );
+            return;
+          }
           if (!('handlers' in object) || object.handlers.length === 0) return;
           const actions = object.handlers.flatMap((h) =>
             h.actions.map((a) => ('page' in a ? `${a.kind} ${a.page}` : a.kind)),

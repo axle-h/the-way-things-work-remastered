@@ -7,6 +7,7 @@ import {
   resolvePath,
   topPage,
   WINE_POPUP_PLACEMENT,
+  wineLosesPopupPicture,
 } from './action-path.ts';
 import { db, ref } from './test-database.ts';
 
@@ -105,6 +106,44 @@ describe('resolvePath', () => {
     expect(step!.effect).toEqual({ kind: 'changePage', page: ref('workshop') });
   });
 
+  describe('navigation buttons', () => {
+    const nav = (page: string, object: number) => ({ page: ref(page), panel: 849, object });
+    const effects = (start: string, steps: ReturnType<typeof nav>[]) =>
+      resolvePath(db, { start: ref(start), steps }, { clientSize }).map((step) => step.effect);
+
+    it('follow the base page links, else the NavPanel pages', () => {
+      // Machines: link 1 on the Airplane, NavPanel page 2 elsewhere.
+      expect(effects('airplane', [nav('airplane', 2)])).toEqual([{ kind: 'changePage', page: ref('aza') }]);
+      expect(effects('workshop', [nav('workshop', 2)])).toEqual([
+        { kind: 'changePage', page: ref('azmachine') },
+      ]);
+      // Principles: link 0, a popup, which is opened.
+      expect(effects('airplane', [nav('airplane', 3)])).toEqual([{ kind: 'openPage', page: ref('popup') }]);
+      // Options: opens the first Options page.
+      expect(effects('workshop', [nav('workshop', 5)])).toEqual([{ kind: 'openPage', page: ref('popup') }]);
+    });
+
+    it('do not close popups first', () => {
+      const steps = resolvePath(
+        db,
+        {
+          start: ref('airplane'),
+          steps: [{ page: ref('airplane'), panel: 1, object: 1 }, nav('airplane', 2)],
+        },
+        { clientSize },
+      );
+      expect(steps[1]!.effect).toEqual({ kind: 'changePage', page: ref('aza') });
+      expect(steps[1]!.after).toEqual({ base: ref('aza'), popups: [] });
+    });
+
+    it('go back through the history of base pages, which a direct start leaves empty', () => {
+      expect(effects('airplane', [nav('airplane', 4)])).toEqual([{ kind: 'none' }]);
+      expect(
+        effects('airplane', [nav('airplane', 1), nav('workshop', 2), nav('azmachine', 4)]).at(-1),
+      ).toEqual({ kind: 'changePage', page: ref('workshop') });
+    });
+  });
+
   it('predicts that a click on the base page closes an open popup', () => {
     const steps = resolvePath(
       db,
@@ -143,5 +182,16 @@ describe('resolvePath', () => {
         { clientSize },
       ),
     ).toThrow(/no panel 5/);
+  });
+});
+
+describe('wineLosesPopupPicture', () => {
+  it('is true when shrinking by the shadow changes the 128-pixel surface size', () => {
+    expect(wineLosesPopupPicture({ width: 185, height: 131 })).toBe(true);
+    expect(wineLosesPopupPicture({ width: 359, height: 388 })).toBe(true);
+    expect(wineLosesPopupPicture({ width: 260, height: 300 })).toBe(true);
+    expect(wineLosesPopupPicture({ width: 291, height: 342 })).toBe(false);
+    expect(wineLosesPopupPicture({ width: 256, height: 133 })).toBe(false);
+    expect(wineLosesPopupPicture({ width: 100, height: 100 })).toBe(false);
   });
 });

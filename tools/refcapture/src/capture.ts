@@ -13,6 +13,7 @@ import {
   type ActionPath,
   type ResolvedStep,
   type ScreenState,
+  wineLosesPopupPicture,
 } from './action-path.ts';
 import {
   WIN31_CLIENT,
@@ -31,7 +32,7 @@ import { refDir } from './paths.ts';
 import type { SettleResult } from './settle.ts';
 import { patchStartupPage } from './startup-patch.ts';
 import { autoAdvanceChain, popupOpeners } from './targets.ts';
-import type { XHelper, XWindow } from './x.ts';
+import type { Size, XHelper, XWindow } from './x.ts';
 
 export interface CaptureOptions {
   readonly display: string;
@@ -113,8 +114,19 @@ export interface Sidecar {
   readonly clientRect: Region;
   /** The client size Wine gave before the harness resized it, or null if it was not resized. */
   readonly resizedFrom: { readonly width: number; readonly height: number } | null;
+  /**
+   * The program's client size as Wine reports it at capture time (the main window's
+   * WM_NORMAL_HINTS), or null if unknown. When it equals `width × height`, every pixel of the
+   * capture was painted by the program; captures made before the harness set WM_STATE lack it.
+   */
+  readonly wineClient: Size | null;
   /** Other top-level windows at capture time (popups, dialogs), in X screen coordinates. */
   readonly otherWindows: readonly XWindow[];
+  /**
+   * Ids of the windows in `otherWindows` (popups) whose picture Wine lost: they show white where
+   * the picture should be (`wineLosesPopupPicture`, docs/reference-environments.md).
+   */
+  readonly whitePopups: readonly number[];
   readonly capturedAt: string;
   readonly timings: { readonly launchMs: number; readonly settleMs: number };
   readonly environment: Environment;
@@ -195,7 +207,19 @@ export class Harness {
       (window.width !== WIN31_CLIENT.width || window.height !== WIN31_CLIENT.height)
     ) {
       resizedFrom = { width: window.width, height: window.height };
-      window = await resizeToWin31(this.#x, window);
+      const resized = await resizeToWin31(this.#x, window);
+      window = resized.window;
+      if (
+        resized.wineClient === null ||
+        resized.wineClient.width !== WIN31_CLIENT.width ||
+        resized.wineClient.height !== WIN31_CLIENT.height
+      ) {
+        const size =
+          resized.wineClient === null
+            ? 'unknown'
+            : `${resized.wineClient.width}×${resized.wineClient.height}`;
+        console.warn(`page ${start}: Wine did not take the resize (its client is ${size})`);
+      }
     }
     const stream = new FrameStream(this.options.display, window, this.options.fps);
     const session: Session = { start, window, resizedFrom, stream, launchMs: performance.now() - begin };
@@ -211,7 +235,10 @@ export class Harness {
     await stopProgram(this.#x, this.options.display);
   }
 
-  async #settle(session: Session, stableMs: number): Promise<SettledCapture & { otherWindows: XWindow[] }> {
+  async #settle(
+    session: Session,
+    stableMs: number,
+  ): Promise<SettledCapture & { otherWindows: XWindow[]; wineClient: Size | null }> {
     await this.#x.move(PARK.x, PARK.y);
     const settled = await waitSettled(session.stream, { stableMs, timeoutMs: this.options.timeoutMs });
     const windows = await this.#x.windows();
@@ -225,7 +252,8 @@ export class Harness {
     ) {
       throw new Error(`the main window moved from ${rectText(session.window)} to ${rectText(main)}`);
     }
-    return { ...settled, otherWindows: windows.filter((window) => window.id !== main.id) };
+    const wineClient = (await this.#x.sizeHints(main.id)).max;
+    return { ...settled, otherWindows: windows.filter((window) => window.id !== main.id), wineClient };
   }
 
   #write(name: string, rgb: Uint8Array, sidecar: Omit<Sidecar, 'image'>): CaptureRecord {
@@ -290,6 +318,8 @@ export class Harness {
       settledDiffersFromRequested: expectedSettledPage !== page,
       settle: { ...settled.result, stableMs, timeoutMs: this.options.timeoutMs },
       otherWindows: settled.otherWindows,
+      whitePopups: settled.otherWindows.filter(wineLosesPopupPicture).map((window) => window.id),
+      wineClient: settled.wineClient,
       timings: { launchMs: Math.round(session.launchMs), settleMs: Math.round(performance.now() - begin) },
     });
   }
@@ -345,7 +375,10 @@ export class Harness {
     name: string | undefined,
     isLast: boolean,
   ): Promise<CaptureRecord> {
-    const settled = await this.#settle(session, this.options.stableMs);
+    // A nav button acts only when its press-in animation ends, and under Wine that animation
+    // pauses for more than the usual settle time (reference-environments.md).
+    const stableMs = last.objectKind === 'navHotspot' ? this.options.advanceStableMs : this.options.stableMs;
+    const settled = await this.#settle(session, stableMs);
     if (last.effect.kind === 'openPage' && settled.otherWindows.length === 0) {
       throw new Error(`clicking ${formatStep(last.step)} opened no popup window`);
     }
@@ -362,8 +395,10 @@ export class Harness {
       autoAdvance: [],
       expectedSettledPage: page,
       settledDiffersFromRequested: false,
-      settle: { ...settled.result, stableMs: this.options.stableMs, timeoutMs: this.options.timeoutMs },
+      settle: { ...settled.result, stableMs, timeoutMs: this.options.timeoutMs },
       otherWindows: settled.otherWindows,
+      whitePopups: settled.otherWindows.filter(wineLosesPopupPicture).map((window) => window.id),
+      wineClient: settled.wineClient,
       timings: { launchMs: Math.round(session.launchMs), settleMs: Math.round(performance.now() - begin) },
     });
   }

@@ -1,6 +1,6 @@
 // A small synthetic page database for the unit tests, shaped like the disc's (no disc bytes): a
-// title chain, the Workshop, an A–Z machine with its "A" page, an article with a popup, and a
-// shared navigation bar.
+// title chain, the Workshop, an A–Z machine with its "A" page, an article with links and a popup,
+// and a shared navigation bar with some of its buttons.
 import {
   HandlerEvent,
   parsePageDatabase,
@@ -64,6 +64,17 @@ const hotspot = (bounds: ReturnType<typeof rect>, handlers: Handler[]): DisplayO
   unknown1: 0,
 });
 
+const navButton = (id: number, bounds: ReturnType<typeof rect>): DisplayObject => ({
+  kind: 'navHotspot',
+  id,
+  flags: 0,
+  rect: bounds,
+  cursor: 'Hand',
+  handlers: [],
+  file: 'nav\\a',
+  unknown1: 1,
+});
+
 const display = (objects: DisplayObject[], id = 1): Panel => ({ kind: 'display', id, objects, handlers: [] });
 
 const page = (directory: string, panels: Panel[], templateId = 7): PageContent => ({
@@ -121,26 +132,23 @@ export const built = buildPageDatabase({
               handlers: [],
               file: 'nav\\nav',
             },
-            {
-              kind: 'navHotspot',
-              id: 850,
-              flags: 0,
-              rect: rect(4, 3, 89, 75),
-              cursor: 'Hand',
-              handlers: [],
-              file: 'nav\\a',
-              unknown1: 1,
-            },
+            navButton(850, rect(4, 3, 89, 75)),
+            navButton(851, rect(4, 77, 90, 146)),
+            navButton(852, rect(5, 149, 90, 231)),
+            navButton(855, rect(5, 376, 90, 395)),
+            navButton(857, rect(5, 417, 90, 435)),
           ],
           handlers: [],
-          buttonIds: [850, 851, 852, 853, 854, 855, 856, 857, 858],
+          // As on the disc: Workshop, Principles, A–Z machine, Inventors, Timeline, two Options
+          // popups, Index and Help; buttons 7 and 8 are ids 858 and 857.
+          buttonIds: [850, 851, 852, 853, 854, 855, 856, 858, 857],
           buttonPages: [
             ref('workshop'),
+            ref('popup'),
             ref('azmachine'),
-            ref('airplane'),
             null,
             null,
-            null,
+            ref('popup'),
             null,
             null,
             null,
@@ -184,7 +192,19 @@ export const built = buildPageDatabase({
           ]),
         ]),
     },
-    { label: 'workshop', page: () => page('\\WORKSHOP\\', [display([bitmap('WWWW0M')])]) },
+    {
+      label: 'workshop',
+      page: (ref) =>
+        page('\\WORKSHOP\\', [
+          display([
+            bitmap('WWWW0M'),
+            hotspot(
+              rect(100, 100, 140, 140),
+              onClick([{ kind: 'changePage', page: ref('airplane'), unknown1: 0 }]),
+            ),
+          ]),
+        ]),
+    },
     {
       label: 'azmachine',
       page: (ref) =>
@@ -206,8 +226,8 @@ export const built = buildPageDatabase({
     { label: 'aza', page: () => page('\\AZAZ\\', [display([bitmap('Az000m')])]) },
     {
       label: 'airplane',
-      page: (ref) =>
-        page('\\ARTICLE1\\AIRP\\', [
+      page: (ref) => ({
+        ...page('\\ARTICLE1\\AIRP\\', [
           display([
             bitmap('AIRP0M'),
             hotspot(rect(10, 10, 50, 30), onClick([{ kind: 'openPage', page: ref('popup'), unknown1: 0 }])),
@@ -235,6 +255,9 @@ export const built = buildPageDatabase({
             ),
           ]),
         ]),
+        // Principles, Machines, Inventors, History (page-database.md, Page).
+        links: [ref('popup'), ref('aza'), ref('workshop'), ref('workshop')],
+      }),
     },
     {
       label: 'popup',

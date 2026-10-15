@@ -114,7 +114,13 @@ export class Comparator {
     const referenceSize = { width: image.width, height: image.height };
     const notes: string[] = [];
     let area = { width: Math.min(image.width, CLIENT_WIDTH), height: Math.min(image.height, CLIENT_HEIGHT) };
-    if (unpaintedStrips(image)) {
+    // Since refcapture sets WM_STATE, Wine's client is the whole capture and records say so.
+    const wineClient = sidecar.wineClient ?? null;
+    const painted =
+      wineClient !== null && wineClient.width >= image.width && wineClient.height >= image.height
+        ? referenceSize
+        : WINE_VISIBLE;
+    if (painted !== referenceSize && unpaintedStrips(image)) {
       // Wine painted only its own 634×454 client (rendering.md §10): compare that part.
       area = { width: WINE_VISIBLE.width, height: WINE_VISIBLE.height };
       notes.push(
@@ -160,7 +166,12 @@ export class Comparator {
       // The page as replayed; when it should have moved on by itself, Wine's stall explains it.
       const stalls = sidecar.settledDiffersFromRequested;
       const candidates: Candidate[] = [
-        await this.#candidate(image, area, referenceSize, { stalled: stalls, arrivedFrom: [], changing }),
+        await this.#candidate(image, area, referenceSize, {
+          stalled: stalls,
+          arrivedFrom: [],
+          changing,
+          painted,
+        }),
       ];
       if (stalls && sidecar.expectedSettledPage !== state.base) {
         // Or the page it moves on to, with the frames the animation leaves behind.
@@ -169,7 +180,12 @@ export class Comparator {
         for (const ref of chain) arrivedFrom.push(await this.engine.loadPage(ref));
         await showState(this.engine, { base: sidecar.expectedSettledPage, popups: [] });
         candidates.push(
-          await this.#candidate(image, area, referenceSize, { stalled: false, arrivedFrom, changing }),
+          await this.#candidate(image, area, referenceSize, {
+            stalled: false,
+            arrivedFrom,
+            changing,
+            painted,
+          }),
         );
       }
       const best = candidates.reduce((a, b) =>
@@ -234,7 +250,12 @@ export class Comparator {
     reference: RgbImage,
     area: { width: number; height: number },
     referenceSize: { width: number; height: number },
-    context: { stalled: boolean; arrivedFrom: readonly PageInstance[]; changing: Rect | null },
+    context: {
+      stalled: boolean;
+      arrivedFrom: readonly PageInstance[];
+      changing: Rect | null;
+      painted: { width: number; height: number };
+    },
   ): Promise<Candidate> {
     const framebuffer = createFramebuffer();
     this.engine.render(framebuffer);

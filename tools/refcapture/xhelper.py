@@ -9,7 +9,9 @@ Requests ({"cmd": ...}):
   move    x y             move the pointer (root coordinates)
   click   x y [button]    move, then press and release a button (XTEST)
   key     chord           press a chord such as "Alt_L+F4" (XTEST)
-  resize  id width height configure a window's size (Wine follows it for its managed windows)
+  normal  id              set WM_STATE to NormalState, as a window manager does when it maps a window
+  hints   id              WM_NORMAL_HINTS min/max size: Wine sets both to its client size for fixed windows
+  resize  id width height configure a window's size (Wine follows it once WM_STATE is set)
   close   id              send WM_DELETE_WINDOW, as a window manager's close button would
   focus   id              give a window the input focus, as a window manager would on a click
   screen                  the root window size: {width, height}
@@ -28,6 +30,7 @@ d = display.Display(os.environ.get("DISPLAY", ":5"))
 root = d.screen().root
 WM_PROTOCOLS = d.intern_atom("WM_PROTOCOLS")
 WM_DELETE_WINDOW = d.intern_atom("WM_DELETE_WINDOW")
+WM_STATE = d.intern_atom("WM_STATE")
 NET_WM_NAME = d.intern_atom("_NET_WM_NAME")
 UTF8_STRING = d.intern_atom("UTF8_STRING")
 
@@ -95,6 +98,22 @@ def key(chord):
         time.sleep(0.03)
 
 
+def normal(wid):
+    # ICCCM 4.1.3.1: WM_STATE is (state, icon window); 1 is NormalState. Wine waits for it before it
+    # accepts any ConfigureNotify (docs/reference-environments.md, "Client area size").
+    w = d.create_resource_object("window", int(wid))
+    w.change_property(WM_STATE, WM_STATE, 32, [1, X.NONE])
+    d.sync()
+
+
+def hints(wid):
+    w = d.create_resource_object("window", int(wid))
+    h = w.get_wm_normal_hints()
+    if h is None:
+        return {"min": None, "max": None}
+    return {"min": [h.min_width, h.min_height], "max": [h.max_width, h.max_height]}
+
+
 def resize(wid, width, height):
     w = d.create_resource_object("window", int(wid))
     w.configure(width=int(width), height=int(height))
@@ -125,6 +144,10 @@ def handle(request):
         click(request["x"], request["y"], request.get("button", 1))
     elif cmd == "key":
         key(request["chord"])
+    elif cmd == "normal":
+        normal(request["id"])
+    elif cmd == "hints":
+        return hints(request["id"])
     elif cmd == "resize":
         resize(request["id"], request["width"], request["height"])
     elif cmd == "close":

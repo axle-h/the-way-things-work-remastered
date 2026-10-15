@@ -40,6 +40,8 @@ export interface MaskInput {
   readonly windows: readonly PageWindow[];
   /** The reference image's size. */
   readonly referenceSize: { readonly width: number; readonly height: number };
+  /** The part of the reference the program painted: Wine's client (default 634×454). */
+  readonly painted?: { readonly width: number; readonly height: number };
   /**
    * The page should have moved on by itself (autostart animation, then a `finished` ChangePage)
    * but the reference shows it still, with the animation stopped part-way.
@@ -175,22 +177,23 @@ export async function deriveMasks(input: MaskInput, animations: AnimationCatalog
     });
   };
 
-  // Wine leaves the client strips beyond its 634×454 black.
+  // Wine leaves the client strips beyond its own client black.
   const { width, height } = input.referenceSize;
+  const painted = input.painted ?? WINE_VISIBLE;
   const black = [0x000000];
-  if (width > WINE_VISIBLE.width) {
+  if (width > painted.width) {
     masks.push({
       reason: 'wineClientStrip',
-      rect: { left: WINE_VISIBLE.width, top: 0, right: width, bottom: height },
-      detail: `columns ${WINE_VISIBLE.width}–${width - 1} where the reference is black`,
+      rect: { left: painted.width, top: 0, right: width, bottom: height },
+      detail: `columns ${painted.width}–${width - 1} where the reference is black`,
       referenceColours: black,
     });
   }
-  if (height > WINE_VISIBLE.height) {
+  if (height > painted.height) {
     masks.push({
       reason: 'wineClientStrip',
-      rect: { left: 0, top: WINE_VISIBLE.height, right: width, bottom: height },
-      detail: `rows ${WINE_VISIBLE.height}–${height - 1} where the reference is black`,
+      rect: { left: 0, top: painted.height, right: width, bottom: height },
+      detail: `rows ${painted.height}–${height - 1} where the reference is black`,
       referenceColours: black,
     });
   }

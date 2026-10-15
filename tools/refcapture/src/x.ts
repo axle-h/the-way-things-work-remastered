@@ -12,6 +12,11 @@ export interface XWindow {
   readonly height: number;
 }
 
+export interface Size {
+  readonly width: number;
+  readonly height: number;
+}
+
 type Reply = { ok: true; [key: string]: unknown } | { ok: false; error: string };
 
 export class XHelper {
@@ -65,6 +70,19 @@ export class XHelper {
 
   async key(chord: string): Promise<void> {
     await this.#call({ cmd: 'key', chord });
+  }
+
+  /** Sets WM_STATE to NormalState, as a window manager would after mapping the window. */
+  async normal(id: number): Promise<void> {
+    await this.#call({ cmd: 'normal', id });
+  }
+
+  /** The window's WM_NORMAL_HINTS minimum and maximum sizes, or null when unset. */
+  async sizeHints(id: number): Promise<{ min: Size | null; max: Size | null }> {
+    const reply = await this.#call({ cmd: 'hints', id });
+    const size = (value: unknown) =>
+      Array.isArray(value) ? { width: Number(value[0]), height: Number(value[1]) } : null;
+    return { min: size(reply['min']), max: size(reply['max']) };
   }
 
   async resize(id: number, width: number, height: number): Promise<void> {
