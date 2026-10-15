@@ -37,7 +37,7 @@ The window passes mouse and keyboard input to the page window under the pointer 
 ### Keyboard
 - `WM_KEYDOWN`: the program forwards only the function keys F1–F24, as numbers 1–24, to the focused page. Backspace, digits and letters are left for `WM_CHAR`, and other keys go to Windows' default handling. `WM_CHAR` characters are forwarded to the focused page [C].
 - On the Workshop, F1, F2, `a`, Esc, Backspace, Tab, Page Up and Left have no visible effect. Esc and Enter do not close the Options popup [V]. No keyboard navigation has been found on ordinary pages.
-- The Index page installs a keyboard hook (`1030:58d0`). Tab moves focus between its two controls, and Esc, Page Up, Page Down, Up and Down are passed on to the program (as private message `0x403`) [C].
+- The Index page installs a keyboard hook (`1030:58d0`) while it is open. Tab moves the focus between its edit box and its list, and Enter, Esc, Page Up, Page Down, Up and Down act on the list whichever window has the focus (special-screens.md §1.9) [C].
 - Alt+F4 closes the program at once, with no confirmation [V].
 
 ### Commands (`WM_COMMAND`) [C]
@@ -47,11 +47,11 @@ Print, print setup and copy are reached from the data instead: the **Options pop
 
 | Option | Label on screen [V] | Effect [C] |
 |---|---|---|
-| 1 | COPY ACTIVE WINDOW | copy the current page's picture to the clipboard (`1028:5836`) |
-| 2 | PRINT ACTIVE WINDOW | print the current page (`1028:5800`) |
+| 1 | COPY ACTIVE WINDOW | copy the target page's picture, with a copyright band below it, to the clipboard (`1028:5836`) |
+| 2 | PRINT ACTIVE WINDOW | print the same picture straight to the printer, with no print dialog (`1028:5800`) |
 | 3 | PRINTER SETUP… | the common print-setup dialog (`1028:6a7e`) |
 
-The popup's fourth item, "MAMMOTH MOVIES…", is an ordinary ChangePage. For copy and print, the "current page" is the topmost window, so a popup if one is open [H]. What they output is for Phase 8.
+The popup's fourth item, "MAMMOTH MOVIES…", is an ordinary ChangePage. The target page is the newest page window open when the Options button was pressed: the most recent popup, else the base page. Details are in special-screens.md §4 [C].
 
 **"Go to page" is dead in this release** [C][V]:
 - Command `0x69` calls `DialogBox` with dialog template **109**, but the EXE has no dialog 109; its dialogs are `PRINTDLG`, 10, 103–107, 400 and 2600 [V]. The call therefore fails and nothing appears.
@@ -61,14 +61,14 @@ The popup's fourth item, "MAMMOTH MOVIES…", is an ordinary ChangePage. For cop
 So the original has no way to jump to a page by name or number. (`docs/reference-environments.md` describes a data-patch alternative for reference captures.)
 
 ## Text the program draws itself [C]
-Article text is part of the bitmaps. The program draws text only in:
-- the **Index** page list box (1,857 entries from the A–Z index, font "MS Serif"; `1030:5e00`);
-- the **A–Z machine** letter strings;
-- **printing** (a caption, font requested as "Ariel"; `1010:e936`);
-- window captions.
+Article text is part of the bitmaps, the A–Z list pages included. The program draws text only in:
+- the **Index** page's list box and edit box (1,857 entries from the A–Z index, font "MS Serif" 8 point with simulated bold; `1030:4b68`; special-screens.md §1);
+- the band added below a **copied or printed** picture: the copyright line "(C) 1994 Dorling Kindersley and Houghton Mifflin Company" (string 5000), in the System font, or in a font requested as "Ariel" when the picture is narrow (`1010:e936`; special-screens.md §4.4).
+
+The AZDial panel's 26 strings are file names, not text. The main window's title, "The Way Things Work", is fixed and drawn by Windows; popups have no caption text (special-screens.md §7).
 
 ## Printing and copying [C]
-Printing (`1010:e936` and nearby) and copying exist, reached from the Options popup (see Commands above). Exactly what they output (base picture, popup, caption) is still to be established, before Phase 8 of the plan.
+Reached from the Options popup (see Commands above). Both take the target page's panels painted at rest (no caption strip, shadow or animation frames), add a 40-row white band with the copyright line, and either put it on the clipboard as a DIB and a bitmap, or print it top-left on the page, scaled so that a 640-pixel-wide screen would fill the printable width. A "Printing … % Done" dialog (resource `PRINTDLG`) shows progress. Full details: special-screens.md §4. To be confirmed against the original before Phase 8.
 
 ## Configuration: `TWTW.INI` [C]
 Read once at startup from the Windows directory (`1030:c762`, via `1018:8738`). The file name (string 2000) and the section name (string 27) come from the string table. **All keys are in section `[Directory]`.** Integer keys use `GetPrivateProfileInt`, so any non-zero value means on.
@@ -103,7 +103,7 @@ Read with any NE resource parser:
 - a custom-type `PALETTE` resource, id 200 (`dib-and-palette.md`);
 - bitmaps named `LINEUP`, `LINEUPALT`, `LINEDOWN`, `LINEDOWNALT`, `THUMB`, `THUMBALT`, `THUMBTRACK` and `THUMBTRACKALT`, plus 29 numbered bitmaps (37 in all). The database refers to bitmap resources as `@NAME`; the named ones are the parts of the custom scroll bar;
 - 2 cursor groups (ids 107 and 157: a pointing hand and an arrow, see Cursors below) and 1 icon (group 102);
-- 8 string-table blocks (about 100 strings, mostly error messages), 9 dialogs (drive selection, CD error, printing, an unreferenced "Go to page", a resource monitor, and the "scrunging" dialog of the authoring build);
+- 8 string-table blocks (about 100 strings, mostly error messages; also the copyright line 5000 used when copying and printing), 9 dialogs (drive selection, CD error, the "Printing" progress dialog, an unreferenced "Go to page", a resource monitor, and the "scrunging" dialog of the authoring build);
 - a version resource (`RT_VERSION`, type 16, id 1).
 
 The program can also play animations embedded as resources of type `WINPICS`, but this disc has none.
@@ -134,9 +134,10 @@ Bitmap resources are DIBs without a `BITMAPFILEHEADER` (`dib-and-palette.md`); a
   | 101, 115–120, 159 | AnimationControl strip parts |
   | 121 | loading splash |
   | 150, 153 | 50% checkerboard pattern for popup drop shadows |
-  | 170, 171 | CancelButton ("Cancel"), normal and probably pressed |
+  | 170, 171 | "Cancel" button, normal and pressed: the CancelButton object and the Index page's Cancel button |
   | 172, 173 | A–Z machine lamp, on and off |
-  | 168, 169 | drawn by the Index page's window code (`1030:4b68`), chosen by an item's selected state (Phase 6) |
+  | 168, 169 | "OK" button of the Index page, normal and pressed (`1030:4b68`; special-screens.md §1.2) |
+  | `LINEUP` … `THUMBTRACKALT` | the ScrollBar objects of the Help pages and the Index page's scroll bar control (special-screens.md §1.11, §3) |
   | 352 | drawn by the A–Z dial code (`1020:abf2`), not at rest |
   | 2–6, 10–12 | loaded into a table at `1030:ca56` (the end of the second range is [H]); use not followed |
 

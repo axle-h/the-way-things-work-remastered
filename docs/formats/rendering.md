@@ -67,7 +67,7 @@ paint(panel, area):            area = whole panel, or the part a repaint needs
   | FFFBF0 | 246 | template 77, popup and index templates |
 
   One base page leaves its panel colour visible: `\ARTICLE3\SUSP\`'s picture `SUSP0m` is 539 wide in the 540-wide content panel. **Page column 633, rows 4–453, should be red (index 249)** [C], a good check against a capture.
-- **Transitions** [C]: the copy to the window can be animated: wipes, scrolls, dissolves and zooms, ids 1–14 (`1010:0d34`). A panel uses its transition only on its first paint, and the transition comes from the ChangePage action's `u16`, which is 0 on the whole disc. Every paint is therefore a plain copy. The names `wipeleft` and `wiperight` belong to these ids.
+- **Transitions** [C]: the copy to the window can be animated: wipes, scrolls, dissolves and zooms, ids 1–14 (`1010:0d34`). A panel uses its transition only on its first paint, and the transition comes from the ChangePage action's `u16`, which is 0 on the whole disc. Every paint is therefore a plain copy. The names `wipeleft` and `wiperight` belong to these ids. The remake drops transitions (special-screens.md §6).
 - **Repaints** [C]: on `WM_PAINT` the program repaints, for every panel that intersects the update rectangle, the intersecting part of that panel, by the same procedure. The result equals a full repaint.
 
 ## 4. Bitmaps and the palette
@@ -90,9 +90,9 @@ What each display object draws during a panel paint, with nothing playing or pre
 | Bitmap (601) | its picture (section 4) |
 | Hotspot (603), AZHotspot (604) | nothing. The Hotspot `i16` (always 0) selects a highlight style 1–4 that is drawn while the hotspot is pressed; 0 means no highlight (`1010:b9c0`) |
 | WordBox (605), NavHotspot (606), AnimHotspot (607), AZAnimHotspot (611) | nothing. Their drawing method is empty; animation frames appear only while an animation plays (Phase 5) |
-| CancelButton (608) | EXE bitmap **170** (62×22, "Cancel") at the rectangle's top-left (`1030:13ea`, `1030:2e40`). Bitmap 171 is loaded too, presumably for the pressed state [H]. The copy uses the rectangle's size (64×24 on the disc). What GDI puts in the two columns and rows beyond the 62×22 source is not established [H] |
+| CancelButton (608) | EXE bitmap **170** (62×22, "Cancel") at the rectangle's top-left (`1030:13ea`, `1030:2e40`); 171 while pressed (special-screens.md §4.2). The copy uses the rectangle's size (64×24 on the disc). What GDI puts in the two columns and rows beyond the 62×22 source is not established; most likely nothing, leaving the popup picture [H] |
 | AnimationControl (602) | a 74×22 control strip from EXE bitmaps, sized to bitmap 101 (see below) |
-| ScrollBitmap (609) | its picture, but **not** at natural size: the rectangle's size is shown, taken from the picture starting at row *scroll position* (0 at rest), column 0 (`1030:bbae`). Its rectangle is not replaced by the picture size |
+| ScrollBitmap (609) | its picture, but **not** at natural size: the rectangle's size is shown, taken from the picture starting at the row of its scroll position (row 0 at rest; special-screens.md §3.2), column 0 (`1030:bbae`). Its rectangle is not replaced by the picture size |
 | ScrollBar (610) | five parts from its `@` bitmaps (see below) |
 
 **AnimationControl** (`1028:987a`, `1028:a474`; Phase 5): its rectangle becomes 74×22 from its top-left. Parts, from EXE bitmaps, at offsets from that top-left:
@@ -107,7 +107,7 @@ What each display object draws during a panel paint, with nothing playing or pre
 
 The parts are composed off-screen and copied as one 74×22 block. **At rest the strip is bitmap 101 with 115 and 116 drawn on it, and nothing of 159 shows** [V]: the engine's rendering of `\ARTICLE1\AMPL\` (control at panel (45,405)) matches its Wine capture exactly. Where the progress indicator goes while playing is for Phase 5.
 
-**ScrollBar** (`1030:a4ea`, `1030:abc6`; Phase 6), for a rectangle (L, T, R, B) and its eight parts in data order (`LINEUP`, `LINEDOWN`, `THUMB`, `THUMBTRACK`, then the four `…ALT` pressed variants):
+**ScrollBar** (`1030:a4ea`, `1030:abc6`; positions and input in special-screens.md §3), for a rectangle (L, T, R, B) and its eight parts in data order (`LINEUP`, `LINEDOWN`, `THUMB`, `THUMBTRACK`, then the four `…ALT` pressed variants):
 - the up arrow at (L, T), at the bitmap's own size;
 - the down arrow at (L, B − its height), at the bitmap's own size;
 - the track runs from the bottom of the up arrow to the top of the down arrow;
@@ -213,7 +213,7 @@ Nothing keeps a popup inside the main window [C]:
 - 11 reach row 459, with the shadow only;
 - 67 overlap the nav bar.
 
-On a 640×480 screen the parts beyond page x 638 (screen x 639) are off-screen. The remake should clip popups to the stage.
+On a 640×480 screen the parts beyond page x 638 (screen x 639) are off-screen. The remake should clip popups to the stage. In practice none of these shows there: the wide pages are all Help pages, which are only ever reached by a same-size popup-to-popup ChangePage from the first Help page, so they appear where that page is, at page x 39 (section 7.7, special-screens.md §5) [C][V].
 
 ### 7.7 ChangePage from popup to popup
 ChangePage replaces the page in the existing window of the same page type [C] (1,079 popup-to-popup ChangePages on the disc):
@@ -280,7 +280,7 @@ To confirm in DOSBox-X (Windows 3.1):
 3. The shadow showing the base page through a checkerboard with (x + y) even black.
 4. Page column 633 on `\ARTICLE3\SUSP\` showing red (index 249).
 5. `WINW0M` index-2 pixels showing dark green.
-6. The CancelButton on the Options popup (bitmap 170, and what fills its 64×24 rectangle beyond 62×22).
+6. The CancelButton on the Options popup (bitmap 170, and what fills its 64×24 rectangle beyond 62×22; special-screens.md §9).
 7. An AnimationControl strip at rest.
 8. Popup-to-popup ChangePage placement when the size changes (7.7).
-9. Popups wider than the client, e.g. the Help pages, cut at the screen edge.
+9. Help pages keeping the first Help page's position when changed to (special-screens.md §5).

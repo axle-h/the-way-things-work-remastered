@@ -26,7 +26,7 @@ The disc is ISO 9660 (level 1, no Joliet or Rock Ridge), volume label `DKMMTWTW`
 
 How the original draws pages from these files (client area, panels, objects at rest, popup windows with caption strip and drop shadow, the palette at runtime) is in [rendering.md](rendering.md): [C], with the base-page, popup and A–Z machine compositions [V] against Wine captures.
 
-How it behaves: mouse routing and hit-testing, events and action lists, page actions, popups, the navigation bar and its history, cursors and keyboard are in [behaviour.md](behaviour.md) [C], with some [V]. Sound and animation playback (players, frame timing against the sound, queueing, stopping, AnimHotspot and AnimationControl) is in [playback.md](playback.md) [C].
+How it behaves: mouse routing and hit-testing, events and action lists, page actions, popups, the navigation bar and its history, cursors and keyboard are in [behaviour.md](behaviour.md) [C], with some [V]. Sound and animation playback (players, frame timing against the sound, queueing, stopping, AnimHotspot and AnimationControl) is in [playback.md](playback.md) [C]. The special screens (the Index page with its list box, the scroll bars of the Help pages, the Options popup with copy, print and printer setup, Help placement) and the list of which object and action types the remake implements or drops are in [special-screens.md](special-screens.md) [C].
 
 Content directories: `TITLE`, `WORKSHOP`, `NAV`, `AZAZ` (A–Z dial), `ARTICLE1`–`3` (machines, one folder per four-letter topic code), `PRINCIPL` (principles of science), `INVENTOR`, `TIMELINE` (history), `GLOS` (glossary), `RELA` (related-topic pictures), `HELP`, `INDEX`, `OPTIONS`.
 

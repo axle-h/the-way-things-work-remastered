@@ -233,8 +233,8 @@ Model this on the Encarta project (`~/projects/encarta/k8s/`, `.github/workflows
 - ~~The exact PICS frame timing rule.~~ Read from the code (`pics.md`, `playback.md`); a measured check against the original is still to do.
 - ~~What WordBox (660 instances) does.~~ Nothing: every WordBox has an empty rectangle and no handlers (`behaviour.md`).
 - ~~Where the transitions are used.~~ Found: ChangePage's `u16` is a panel transition id (always 0 on the disc), OpenPage's `u16` selects the zoom effect (`page-database.md`).
-- How the Index page and Options behave.
-- What exactly the original prints and copies.
+- ~~How the Index page and Options behave.~~ Read from the code (`docs/formats/special-screens.md`); captures still to do.
+- ~~What exactly the original prints and copies.~~ Read from the code: the target page's picture with a 40-row copyright band, printed top-left at 640-pixels-to-the-width scale (`special-screens.md` §4); to confirm in DOSBox-X before Phase 8.
 
 ## 9. Decisions
 
