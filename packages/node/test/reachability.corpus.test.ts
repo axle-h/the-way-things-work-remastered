@@ -5,9 +5,9 @@
  * state it reaches. Animations end at once (no media yet), so pages that move on when their
  * animation ends do so.
  *
- * Pages reachable only through the A–Z index list (the Index page's list box, Phase 6) cannot be
- * reached by clicking yet; the test derives that set from the database and expects exactly those
- * to be missing. Also checks Back against what was observed under Wine (behaviour.md §6.3).
+ * Pages reachable only through the A–Z index list (the Index page's list box) are not reached by
+ * clicking page objects; the test derives that set from the database and expects exactly those to
+ * be missing. special.corpus.test.ts goes to every Index entry. Also checks Back against what was observed under Wine (behaviour.md §6.3).
  * Only counts and page offsets are reported; nothing from the disc is stored.
  */
 import {

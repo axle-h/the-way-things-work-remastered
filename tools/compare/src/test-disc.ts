@@ -144,6 +144,16 @@ const heap: HeapEntrySpec[] = [
   },
   { label: 'other', page: () => page({ panels: [display(1, [bitmapObject(2, 0, 0, 'OTHER')])] }) },
   {
+    label: 'index',
+    page: () =>
+      page({
+        pageType: 'index',
+        templateId: 617,
+        origin: { x: 89, y: 42 },
+        panels: [display(1, [bitmapObject(2, 0, 0, 'INDEX')])],
+      }),
+  },
+  {
     label: 'intro',
     page: (ref) =>
       page({
@@ -257,6 +267,14 @@ const product = (ref: RefOf): Product => ({
       unknown4: 4,
       panels: [panelSlot(1, 0, 0, 0, 0, 0xfffbf0)],
     }),
+    template({
+      id: 617,
+      pageType: 'index',
+      unknown1: [7, 1],
+      unknown3: 1,
+      unknown4: 4,
+      panels: [panelSlot(1, 0, 0, 0, 0, 0xfffbf0)],
+    }),
   ],
 });
 
@@ -284,6 +302,7 @@ const files: Record<string, Uint8Array> = {
   'ART/OTHER.DIB': syntheticDib(540, 450, FILL.other),
   'ART/POPUP.DIB': syntheticDib(60, 40, FILL.popup),
   'ART/POPUP2.DIB': syntheticDib(70, 30, FILL.popup2),
+  'ART/INDEX.DIB': syntheticDib(363, 360, FILL.popup2),
   'ART/INTRO.ANI': animation([
     [INTRO_FRAMES[0], FILL.frameA],
     [INTRO_FRAMES[1], FILL.frameB],
@@ -291,7 +310,14 @@ const files: Record<string, Uint8Array> = {
   'ART/MOVIE.ANI': animation([[MOVIE_FRAME, FILL.movie]]),
 };
 
-export const disc = syntheticDisc({ product, heap }, files);
+export const disc = syntheticDisc(
+  {
+    product,
+    heap,
+    index: (ref) => [{ name: 'Entry', nameLength: 5, unknown1: 0, page: ref('other'), seeAlso: [] }],
+  },
+  files,
+);
 
 export function ref(label: string): number {
   const value = disc.refs.get(label);

@@ -35,6 +35,7 @@ Open `vendor/compare/index.html`: totals, the expected differences by reason, an
 | `autostartAnimation` | other autostart animations | the same |
 | `animationLeftover` | the animation that moved on to the page | the same |
 | `referenceChanging` | the sidecar's `changingRect`, when the capture still cycled | any |
+| `indexText` | the Index page's edit box and list (special-screens.md §1.3) | any: the text is in our own font, not Windows' MS Serif; the scroll bar and buttons are not masked |
 
 Animation masks are per pixel: a difference counts as explained only where the reference shows a colour that some frame of that animation paints at that position (frames placed at their panel's origin).
 

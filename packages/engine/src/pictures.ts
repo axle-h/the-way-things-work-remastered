@@ -23,6 +23,9 @@ export const ProgramBitmap = {
   animationPlayEnded: 120,
   /** The progress indicator. */
   animationProgress: 159,
+  /** The Index page's OK button, and pressed (special-screens.md §1.2). */
+  ok: 168,
+  okPressed: 169,
   cancel: 170,
   /** The CancelButton while pressed (behaviour.md §3). */
   cancelPressed: 171,

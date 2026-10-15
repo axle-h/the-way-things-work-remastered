@@ -29,7 +29,8 @@ export function attachInput(
     let doubleClick = false;
     if (event.pointerType === 'mouse') doubleClick = doubleClicks.press(x, y, event.timeStamp);
     else doubleClicks.reset();
-    void engine.pointerDown(x, y, { doubleClick });
+    // Touch: scroll thumbs keep following the finger, and swipes scroll (special-screens.md §1.12, §3.4).
+    void engine.pointerDown(x, y, { doubleClick, touch: event.pointerType === 'touch' });
   };
   const move = (event: PointerEvent): void => {
     if (!event.isPrimary) return;
@@ -54,7 +55,14 @@ export function attachInput(
   };
   const prevent = (event: Event): void => event.preventDefault();
   const key = (event: KeyboardEvent): void => {
-    if (engine.key({ key: event.key, altKey: event.altKey })) event.preventDefault();
+    const input = {
+      key: event.key,
+      altKey: event.altKey,
+      shiftKey: event.shiftKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+    };
+    if (engine.key(input)) event.preventDefault();
   };
   const visibility = (): void =>
     engine.setActive(document.visibilityState === 'visible' && document.hasFocus());

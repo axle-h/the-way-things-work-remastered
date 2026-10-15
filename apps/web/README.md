@@ -14,6 +14,13 @@ In development builds, `window.twtw` holds the engine, the media and the sink, a
 
 `#page=<ref>` in the URL starts at another page (after the gate), `#page=<ref>,popup=<ref>` opens popups over it, and `presentation=wine` places popups as in the Wine captures.
 
+## Special screens (Phase 6)
+
+- **Index**: typing, Tab, Enter, Esc, the arrows and Page Up/Down go to the Index while it is open; the list scrolls with its scroll bar, and by swiping on a touch screen (a tap on a row selects it, a tap on the selected row goes).
+- **Help**: the scrolling Help pages scroll with their bar; on a touch screen the thumb keeps following the finger off the bar, and swiping the picture scrolls it.
+- **Copy and print** (Options): until Phase 8 puts the picture on the clipboard or prints it, the app downloads it as a PNG (the page's picture with the copyright band).
+- The page title is fixed: "The Way Things Work", as the original's window title.
+
 ## Playtest checklist (Phase 5)
 
 Run on a laptop or desktop browser (Chrome, Firefox, Safari), a tablet and a phone in landscape, with sound on. Note the device, browser and anything that fails.

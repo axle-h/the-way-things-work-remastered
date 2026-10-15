@@ -75,6 +75,8 @@ export const SYNTHETIC_BITMAP_FILL = {
   [ProgramBitmap.animationPause]: 119,
   [ProgramBitmap.animationPlayEnded]: 120,
   [ProgramBitmap.animationProgress]: 159,
+  [ProgramBitmap.ok]: 168,
+  [ProgramBitmap.okPressed]: 169,
   [ProgramBitmap.cancel]: 170,
   [ProgramBitmap.cancelPressed]: 171,
   [ProgramBitmap.lampOn]: 172,
@@ -91,6 +93,8 @@ const PROGRAM_BITMAP_SIZES: readonly (readonly [number, number, number])[] = [
   [ProgramBitmap.animationPause, 16, 16],
   [ProgramBitmap.animationPlayEnded, 16, 16],
   [ProgramBitmap.animationProgress, 100, 30],
+  [ProgramBitmap.ok, 62, 22],
+  [ProgramBitmap.okPressed, 62, 22],
   [ProgramBitmap.cancel, 62, 22],
   [ProgramBitmap.cancelPressed, 62, 22],
   [ProgramBitmap.lampOn, 17, 8],
@@ -104,11 +108,33 @@ export const SYNTHETIC_SCROLL_PARTS = [
   { name: 'LINEDOWN', height: 16, fill: 70 },
   { name: 'THUMB', height: 16, fill: 80 },
   { name: 'THUMBTRACK', height: 270, fill: 90 },
+  { name: 'LINEUPALT', height: 16, fill: 64 },
+  { name: 'LINEDOWNALT', height: 16, fill: 74 },
+  { name: 'THUMBALT', height: 16, fill: 84 },
+  { name: 'THUMBTRACKALT', height: 270, fill: 94 },
 ] as const;
 
-/** A program file (NE) with the palette, the engine's numbered bitmaps and scroll-bar parts. */
+/** The synthetic program's copyright line (string 5000; the real one is read from the disc). */
+export const SYNTHETIC_COPYRIGHT = '(C) Synthetic Test Disc';
+
+/** A string-table block (program.md, Strings): 16 length-prefixed strings. */
+function stringBlock(strings: Readonly<Record<number, string>>): Uint8Array {
+  const writer = new ByteWriter('le');
+  for (let i = 0; i < 16; i++) {
+    const text = strings[i] ?? '';
+    writer.u8(text.length);
+    for (const char of text) writer.u8(char.charCodeAt(0));
+  }
+  return writer.toBytes();
+}
+
+/**
+ * A program file (NE) with the palette, the engine's numbered bitmaps, the scroll-bar parts and
+ * the copyright string.
+ */
 export function syntheticProgram(): Uint8Array {
   return buildNeExecutable([
+    { type: 6, id: 313, data: stringBlock({ 8: SYNTHETIC_COPYRIGHT }) },
     { type: 'PALETTE', id: 200, data: syntheticLogPalette() },
     ...PROGRAM_BITMAP_SIZES.map(([id, width, height]) => ({
       type: 2,

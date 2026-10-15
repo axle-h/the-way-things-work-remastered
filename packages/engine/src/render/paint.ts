@@ -14,12 +14,21 @@ import {
   type PlacedObject,
 } from '../page.ts';
 import type { IndexedImage } from '../screen.ts';
+import { scrollBarLayout, scrollPictureRow, SCROLL_PART_SIZE, type ScrollPart } from '../special/scroll.ts';
 import type { IndexedCanvas } from './canvas.ts';
 
+export interface PaintOptions {
+  /**
+   * Only what the panels paint themselves, as for a copied or printed picture
+   * (special-screens.md §4.4): no animation frames and no A–Z lamp or pressed "go" button.
+   */
+  readonly atRest?: boolean;
+}
+
 /** Paints every panel of a page, in panel-list order; `canvas` has the page's content origin. */
-export function paintPage(canvas: IndexedCanvas, page: PageInstance): void {
+export function paintPage(canvas: IndexedCanvas, page: PageInstance, options: PaintOptions = {}): void {
   for (const panel of page.panels) {
-    paintPanel(canvas.view(panel.x, panel.y, panel.width, panel.height), panel);
+    paintPanel(canvas.view(panel.x, panel.y, panel.width, panel.height), panel, options);
   }
 }
 
@@ -28,11 +37,11 @@ export function paintPage(canvas: IndexedCanvas, page: PageInstance): void {
  * panel: fill with the panel colour, then draw the objects in data order (later ones on top),
  * then what animations have drawn over it since (playback.md §3).
  */
-export function paintPanel(canvas: IndexedCanvas, panel: PanelInstance): void {
+export function paintPanel(canvas: IndexedCanvas, panel: PanelInstance, options: PaintOptions = {}): void {
   canvas.fill(0, 0, panel.width, panel.height, panel.colour);
   for (const placed of panel.objects) drawObject(canvas, placed);
-  if (panel.dial !== null) drawDial(canvas, panel.dial);
-  panel.layer.paint(canvas);
+  if (panel.dial !== null) drawDial(canvas, panel.dial, options.atRest !== true);
+  if (options.atRest !== true) panel.layer.paint(canvas);
 }
 
 function drawObject(canvas: IndexedCanvas, { rect, look }: PlacedObject): void {
@@ -43,14 +52,24 @@ function drawObject(canvas: IndexedCanvas, { rect, look }: PlacedObject): void {
       if (look.picture !== null) canvas.draw(look.picture, rect.left, rect.top);
       break;
     case 'scrollBitmap':
-      // The rectangle's size of the picture, from row (scroll position) 0, column 0.
+      // The rectangle's size of the picture, from the row of the scroll position, column 0.
       if (look.picture !== null) {
-        canvas.draw(look.picture, rect.left, rect.top, 0, 0, rect.right - rect.left, rect.bottom - rect.top);
+        canvas.draw(
+          look.picture,
+          rect.left,
+          rect.top,
+          0,
+          scrollPictureRow(look.scroll),
+          rect.right - rect.left,
+          rect.bottom - rect.top,
+        );
       }
       break;
-    case 'scrollBar':
-      drawScrollBar(canvas, rect, look.parts, 0);
+    case 'scrollBar': {
+      const layout = scrollBarLayout(rect.right - rect.left, rect.bottom - rect.top, look.scroll);
+      drawScrollBar(canvas, rect, look.parts, layout.thumbTop - layout.trackTop, look.pressed);
       break;
+    }
     case 'control':
       drawControlStrip(canvas.view(rect.left, rect.top, CONTROL_WIDTH, CONTROL_HEIGHT), look.strip);
       break;
@@ -86,18 +105,28 @@ export function drawControlStrip(canvas: IndexedCanvas, strip: ControlStrip): vo
 /**
  * A scroll bar for the rectangle (L, T, R, B), with the thumb `offset` pixels below the top of
  * the track (rendering.md §5). Parts in data order: up arrow, down arrow, thumb, track, then the
- * four pressed variants.
+ * four pressed variants, drawn for the `pressed` part (an arrow while held, the track while
+ * paging, the thumb while dragged; special-screens.md §3.3).
  */
 export function drawScrollBar(
   canvas: IndexedCanvas,
   rect: { left: number; top: number; right: number; bottom: number },
   parts: readonly (IndexedImage | null)[],
   offset: number,
+  pressed: ScrollPart | null = null,
 ): void {
-  const [up = null, down = null, thumb = null, track = null] = parts;
+  const pick = (normal: number, part: ScrollPart | readonly ScrollPart[]): IndexedImage | null => {
+    const isPressed =
+      pressed !== null && (typeof part === 'string' ? part === pressed : part.includes(pressed));
+    return (isPressed ? parts[normal + 4] : null) ?? parts[normal] ?? null;
+  };
+  const up = pick(0, 'lineUp');
+  const down = pick(1, 'lineDown');
+  const thumb = pick(2, 'thumb');
+  const track = pick(3, ['pageUp', 'pageDown']);
   const width = rect.right - rect.left;
-  const trackTop = rect.top + (up?.height ?? 0);
-  const trackBottom = rect.bottom - (down?.height ?? 0);
+  const trackTop = rect.top + (up?.height ?? SCROLL_PART_SIZE);
+  const trackBottom = rect.bottom - (down?.height ?? SCROLL_PART_SIZE);
   const thumbTop = trackTop + offset;
   const thumbBottom = thumbTop + (thumb?.height ?? 0);
   if (thumb !== null) canvas.draw(thumb, rect.left, thumbTop, 0, 0, width, thumb.height);
@@ -112,10 +141,13 @@ export function drawScrollBar(
 /**
  * The A–Z dial's current letter picture, its lamp and, after "go", the pressed go button, after
  * the normal panel paint. The button covers the lamp until the lamp's next tick draws over it.
+ * `live` false draws the letter only: the lamp and the button are drawn by timers and presses,
+ * not by the panel's paint (special-screens.md §4.4).
  */
-function drawDial(canvas: IndexedCanvas, dial: DialState): void {
+function drawDial(canvas: IndexedCanvas, dial: DialState, live: boolean): void {
   const letter = dial.letters[dial.letter] ?? null;
   if (letter !== null) canvas.draw(letter, DIAL_POSITIONS.letter.x, DIAL_POSITIONS.letter.y);
+  if (!live) return;
   const lamp = dial.lampOn ? dial.lampOnPicture : dial.lampOffPicture;
   const drawLamp = (): void => {
     if (lamp !== null) canvas.draw(lamp, DIAL_POSITIONS.lamp.x, DIAL_POSITIONS.lamp.y);

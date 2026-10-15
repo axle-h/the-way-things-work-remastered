@@ -41,7 +41,7 @@ import {
   type PanelInstance,
   type PlacedObject,
 } from './page.ts';
-import { PictureStore } from './pictures.ts';
+import { PictureStore, ProgramBitmap } from './pictures.ts';
 import { IndexedCanvas, intersect, type Box } from './render/canvas.ts';
 import { invertFocusRect } from './render/focus-rect.ts';
 import { paintPage } from './render/paint.ts';
@@ -57,7 +57,24 @@ import {
   type Presentation,
   type PresentationName,
 } from './render/window.ts';
-import { CLIENT_HEIGHT, CLIENT_WIDTH, type Framebuffer } from './screen.ts';
+import { CLIENT_HEIGHT, CLIENT_WIDTH, type Framebuffer, type IndexedImage } from './screen.ts';
+import { buildCopyImage } from './special/copy-image.ts';
+import {
+  IndexScreen,
+  SWIPE_THRESHOLD,
+  type IndexCommand,
+  type IndexPictures,
+} from './special/index-screen.ts';
+import {
+  clamp,
+  scrollBarLayout,
+  scrollDragPosition,
+  scrollPartAt,
+  scrollPartRows,
+  scrollStep,
+  SCROLL_BAR_REPEAT_MS,
+  type ScrollPart,
+} from './special/scroll.ts';
 import {
   invertOutline,
   visibleZoomRectangles,
@@ -84,9 +101,15 @@ export interface EngineOptions {
 export type EngineEvent =
   /**
    * ProductOption (behaviour.md §4.6): 1 copy, 2 print, 3 print setup (Phase 8). `page` is the
-   * page recorded when the Options button was pressed, if it is still open.
+   * page recorded when the Options button was pressed, if it is still open. For copy and print,
+   * `image` is that page's captioned picture (special-screens.md §4.4), in the engine's palette.
    */
-  | { readonly kind: 'productOption'; readonly option: number; readonly page: PageInstance | null }
+  | {
+      readonly kind: 'productOption';
+      readonly option: number;
+      readonly page: PageInstance | null;
+      readonly image: IndexedImage | null;
+    }
   /** Alt+F4 with the main window focused: the original closes at once (program.md). */
   | { readonly kind: 'quit' }
   /** A page action that could not run, e.g. a ChangePage with no window to change (behaviour.md §4.3). */
@@ -113,6 +136,9 @@ export interface Hit {
 export interface KeyInput {
   readonly key: string;
   readonly altKey?: boolean;
+  readonly shiftKey?: boolean;
+  readonly ctrlKey?: boolean;
+  readonly metaKey?: boolean;
 }
 
 export interface PointerDownOptions {
@@ -121,6 +147,13 @@ export interface PointerDownOptions {
    * `DoubleClickDetector`): the original ignores it and the release that follows (behaviour.md §1.7).
    */
   readonly doubleClick?: boolean;
+  /**
+   * The press is a touch (a finger, not a mouse or pen). Touch adds to the original's mouse
+   * behaviour where a finger needs it (special-screens.md §1.12, §3.4): a scroll thumb keeps
+   * following a finger that leaves the bar, and swiping the Help pictures and the Index list
+   * scrolls them.
+   */
+  readonly touch?: boolean;
 }
 
 /** A popup or index window; the engine's mutable record behind {@link PageWindow}. */
@@ -136,6 +169,8 @@ class Popup implements PageWindow {
   readonly opener: Popup | null;
   /** Start point (screen) of the opening zoom, for the closing zoom; `null` if it opened without. */
   zoomFrom: Point | null = null;
+  /** The Index page's controls, while the window shows the Index (special-screens.md §1). */
+  index: IndexScreen | null = null;
 
   constructor(
     page: PageInstance,
@@ -160,9 +195,26 @@ interface ObjectTarget extends MediaTarget {
   readonly object: PlacedObject;
 }
 
+/** A touch on a ScrollBitmap: a swipe scrolls the picture (a remake addition). */
+interface Swipe {
+  readonly startY: number;
+  readonly startPosition: number;
+  swiping: boolean;
+}
+
 type Press =
   /** An object holds the capture (behaviour.md §1.4). */
-  | { readonly kind: 'object'; readonly target: ObjectTarget }
+  | { readonly kind: 'object'; readonly target: ObjectTarget; readonly swipe?: Swipe }
+  /** A Help ScrollBar is pressed or its thumb dragged (special-screens.md §3.3). */
+  | {
+      readonly kind: 'scroll';
+      readonly target: ObjectTarget;
+      readonly part: ScrollPart;
+      readonly touch: boolean;
+      nextRepeat: number;
+    }
+  /** One of the Index page's controls holds the capture (special-screens.md §1). */
+  | { readonly kind: 'index'; readonly window: Popup; readonly touch: boolean }
   /** A popup's system box or shadow was pressed: a release there closes it (§5). */
   | { readonly kind: 'close'; readonly window: Popup }
   /** A popup's caption was pressed: the dotted rectangle follows the mouse (§5). */
@@ -216,6 +268,7 @@ export class Engine {
   #dialGoTick = 0;
   /** The page copy and print act on, recorded by the Options button (§6.2). */
   #optionsTarget: { readonly window: Popup | null; readonly page: PageInstance } | null = null;
+  #indexPictures: IndexPictures | null = null;
   #dirty = true;
 
   /** Loads the database, palette and program resources, then shows the start page. */
@@ -278,6 +331,19 @@ export class Engine {
   /** Whether a zoom effect is on screen. */
   get zooming(): boolean {
     return this.#zoom !== null;
+  }
+
+  /** The Index page's controls, if the Index is open (the topmost Index window). */
+  get indexScreen(): IndexScreen | null {
+    return this.#indexWindow()?.index ?? null;
+  }
+
+  /**
+   * The picture that copy and print produce for a page (special-screens.md §4.4): its panels at
+   * rest and a 40-row white band with the program's copyright line. Indices of {@link palette}.
+   */
+  copyImage(page: PageInstance): IndexedImage {
+    return buildCopyImage(page, this.content.copyright);
   }
 
   /**
@@ -394,7 +460,7 @@ export class Engine {
   /** A mouse button press, touch or pen contact at (x, y) in page coordinates (behaviour.md §1.4, §5). */
   pointerDown(x: number, y: number, options: PointerDownOptions = {}): Promise<void> {
     this.#pointer = { x, y };
-    return this.#run(() => this.#handlePress(x, y, options.doubleClick === true));
+    return this.#run(() => this.#handlePress(x, y, options.doubleClick === true, options.touch === true));
   }
 
   /** Pointer movement: cursor, caption drag, the pressed CancelButton (behaviour.md §1.8). */
@@ -405,6 +471,13 @@ export class Engine {
     if (press?.kind === 'drag') {
       press.to = { x, y };
       this.#dirty = true;
+    } else if (press?.kind === 'index') {
+      press.window.index?.move({ ...this.#contentPoint(press.window, x, y), time: this.clock.now() });
+      this.#dirty = true;
+    } else if (press?.kind === 'scroll') {
+      this.#scrollMove(press, x, y);
+    } else if (press?.kind === 'object' && press.swipe !== undefined) {
+      this.#swipeMove(press.target, press.swipe, y);
     } else if (press?.kind === 'object' && press.target.object.object.kind === 'cancelButton') {
       const point = this.#panelPoint(press.target, x, y);
       const rect = press.target.object.rect;
@@ -424,10 +497,8 @@ export class Engine {
 
   /** The pointer was cancelled (e.g. a touch taken over by the system): forget the press, click nothing. */
   pointerCancel(): void {
-    this.#press = null;
+    this.#endPress();
     this.#ignoreRelease = false;
-    if (this.#buttonPressed) this.#dirty = true;
-    this.#buttonPressed = false;
   }
 
   /** The pointer left the stage: no cursor position. */
@@ -437,7 +508,9 @@ export class Engine {
 
   /**
    * A key press (behaviour.md §9). Ordinary pages ignore every key; Alt+F4 closes the focused
-   * popup, or asks to quit from the main window. Returns whether the key was used.
+   * popup, or asks to quit from the main window. While the Index is open, its keyboard hook's keys
+   * act on it whichever window has the focus, and other keys go to its focused control
+   * (special-screens.md §1.9). Returns whether the key was used.
    */
   key(input: KeyInput): boolean {
     if (input.altKey === true && input.key === 'F4') {
@@ -446,9 +519,22 @@ export class Engine {
       else this.#emit({ kind: 'quit' });
       return true;
     }
-    // F1–F24 and characters go to the focused page, whose panels ignore them. The Index page's
-    // own keyboard handling is Phase 6.
-    return false;
+    const window = this.#indexWindow();
+    if (window === null || window.index === null || input.altKey === true || input.metaKey === true)
+      return false;
+    const { used, command } = window.index.key(
+      {
+        key: input.key,
+        shiftKey: input.shiftKey === true,
+        ctrlKey: input.ctrlKey === true,
+        time: this.clock.now(),
+      },
+      this.#focus === window,
+    );
+    if (!used) return false;
+    this.#dirty = true;
+    if (command !== null) void this.#run(() => this.#indexCommand(window, command));
+    return true;
   }
 
   /**
@@ -475,6 +561,10 @@ export class Engine {
   update(): boolean {
     if (this.media.update?.() === true) this.#dirty = true;
     const now = this.clock.now();
+    for (const popup of this.#popups) {
+      if (popup.index?.tick(now) === true) this.#dirty = true;
+    }
+    this.#scrollRepeat(now);
     for (const panel of this.#base?.panels ?? []) {
       const dial = panel.dial;
       if (dial === null) continue;
@@ -565,12 +655,14 @@ export class Engine {
       const focused = this.#appActive && window === this.#focus;
       drawWindow(screen, window, focused, this.presentation, this.#captionColours);
       const { width, height } = windowSize(window);
-      this.#drawPressedButton(
-        screen
-          .view(window.x, window.y, width, height)
-          .view(0, window.caption, window.page.width, window.page.height),
-        window,
-      );
+      const content = screen
+        .view(window.x, window.y, width, height)
+        .view(0, window.caption, window.page.width, window.page.height);
+      this.#drawPressedButton(content, window);
+      if (window.index !== null) {
+        const parity = (this.presentation.clientScreenOrigin.x + this.presentation.clientScreenOrigin.y) & 1;
+        window.index.draw(content, this.#loadIndexPictures(), this.clock.now(), parity);
+      }
     }
     const origin = this.presentation.clientScreenOrigin;
     const press = this.#press;
@@ -665,8 +757,7 @@ export class Engine {
     for (let next = this.#queue.shift(); next !== undefined; next = this.#queue.shift()) {
       const { action } = next;
       // Page actions release the mouse capture (§4.1, §4.3).
-      this.#press = null;
-      this.#buttonPressed = false;
+      this.#endPress();
       let ok = false;
       let reason = 'no window can show the page';
       try {
@@ -693,9 +784,10 @@ export class Engine {
   // -------------------------------------------------------------------------------------------
   // Pointer handling
 
-  #handlePress(x: number, y: number, doubleClick: boolean): void | Promise<void> {
-    this.#press = null;
-    this.#buttonPressed = false;
+  #handlePress(x: number, y: number, doubleClick: boolean, touch: boolean): void | Promise<void> {
+    this.#endPress();
+    const control = this.#indexControlPress(x, y, doubleClick, touch);
+    if (control !== null) return control.result;
     if (doubleClick) {
       // A double-click message: no press, and the next release is ignored (§1.7).
       this.#ignoreRelease = true;
@@ -727,6 +819,8 @@ export class Engine {
 
     this.#active = window;
     if (window?.focusable === true) this.#setFocus(window);
+    // A press on the Index picture outside its controls (special-screens.md §1.7).
+    window?.index?.pressOutside(this.clock.now());
     const panel = hit.panel;
     if (panel === null) return;
     let closing: Promise<void> | undefined;
@@ -738,7 +832,19 @@ export class Engine {
     }
     const object = hit.object;
     if (object !== null && (flagsOf(object) & 0x2) === 0) {
-      this.#press = { kind: 'object', target: { window, page: hit.page, panel, object } };
+      const target = { window, page: hit.page, panel, object };
+      if (object.look?.kind === 'scrollBar') {
+        this.#scrollPress(target, { x: hit.panelX, y: hit.panelY }, touch);
+        return closing;
+      }
+      this.#press =
+        touch && object.look?.kind === 'scrollBitmap'
+          ? {
+              kind: 'object',
+              target,
+              swipe: { startY: y, startPosition: object.look.scroll.position, swiping: false },
+            }
+          : { kind: 'object', target };
       if (object.object.kind === 'cancelButton') {
         this.media.stopAll();
         this.#buttonPressed = true;
@@ -755,10 +861,16 @@ export class Engine {
       return;
     }
     const press = this.#press;
-    this.#press = null;
-    if (this.#buttonPressed) this.#dirty = true;
-    this.#buttonPressed = false;
+    this.#endPress(true);
 
+    if (press?.kind === 'index') {
+      const index = press.window.index;
+      if (index === null) return;
+      const command = index.release({ ...this.#contentPoint(press.window, x, y), time: this.clock.now() });
+      return this.#indexCommand(press.window, command);
+    }
+    if (press?.kind === 'scroll') return;
+    if (press?.kind === 'object' && press.swipe?.swiping === true) return;
     if (press?.kind === 'close') {
       const hit = this.hitTest(x, y);
       if (hit?.window === press.window && (hit.area === 'systemBox' || hit.area === 'shadow')) {
@@ -901,9 +1013,13 @@ export class Engine {
         case 'sendMessage':
           this.#sendMessage(action.target, action.message, target);
           break;
-        case 'productOption':
-          this.#emit({ kind: 'productOption', option: action.option, page: this.#optionsPage() });
+        case 'productOption': {
+          const page = this.#optionsPage();
+          const image =
+            page !== null && (action.option === 1 || action.option === 2) ? this.copyImage(page) : null;
+          this.#emit({ kind: 'productOption', option: action.option, page, image });
           break;
+        }
         default:
           this.media.runAction(action satisfies MediaAction, target);
       }
@@ -1081,6 +1197,207 @@ export class Engine {
   }
 
   // -------------------------------------------------------------------------------------------
+  // Special screens: the Index page's controls, the Help pages' scroll bars (special-screens.md)
+
+  /**
+   * Ends any press: the capture, the CancelButton's and scroll bar's pressed pictures. An Index
+   * control's press is cancelled too, unless its release is about to be handled.
+   */
+  #endPress(releasing = false): void {
+    const press = this.#press;
+    if (press?.kind === 'scroll' && press.target.object.look?.kind === 'scrollBar') {
+      press.target.object.look.pressed = null;
+    }
+    if (press?.kind === 'index' && !releasing) press.window.index?.cancelPress();
+    if (press !== null || this.#buttonPressed) this.#dirty = true;
+    this.#press = null;
+    this.#buttonPressed = false;
+  }
+
+  /** The topmost window showing the Index, if any. */
+  #indexWindow(): Popup | null {
+    return this.#popups.findLast((popup) => popup.index !== null) ?? null;
+  }
+
+  #newIndexScreen(): IndexScreen {
+    return new IndexScreen(
+      this.content.database.index.map((entry) => entry.name ?? ''),
+      this.clock.now(),
+    );
+  }
+
+  /** The program bitmaps the Index controls are drawn from, loaded once. */
+  #loadIndexPictures(): IndexPictures {
+    if (this.#indexPictures === null) {
+      const resource = (id: number | string): IndexedImage | null => {
+        try {
+          return this.#pictures.resource(id);
+        } catch {
+          return null;
+        }
+      };
+      const parts = ['LINEUP', 'LINEDOWN', 'THUMB', 'THUMBTRACK'];
+      this.#indexPictures = {
+        scrollParts: [...parts, ...parts.map((part) => `${part}ALT`)].map(resource),
+        ok: resource(ProgramBitmap.ok),
+        okPressed: resource(ProgramBitmap.okPressed),
+        cancel: resource(ProgramBitmap.cancel),
+        cancelPressed: resource(ProgramBitmap.cancelPressed),
+      };
+    }
+    return this.#indexPictures;
+  }
+
+  /** A page point in a window's content (picture) coordinates. */
+  #contentPoint(window: Popup, x: number, y: number): Point {
+    return { x: x - window.x, y: y - window.y - window.caption };
+  }
+
+  /**
+   * A press on one of the Index page's controls, which lie on top of its picture: the control
+   * takes the press (and a double click's second press) instead of the page. `null` when the
+   * press is not on a control.
+   */
+  #indexControlPress(
+    x: number,
+    y: number,
+    doubleClick: boolean,
+    touch: boolean,
+  ): { readonly result: void | Promise<void> } | null {
+    const hit = this.hitTest(x, y);
+    const window = hit?.window as Popup | null | undefined;
+    if (hit?.area !== 'client' || window == null || window.index === null) return null;
+    const point = this.#contentPoint(window, x, y);
+    const control = window.index.controlAt(point.x, point.y);
+    if (control === null) return null;
+    this.#ignoreRelease = false;
+    this.#raise(window);
+    this.#setFocus(window);
+    const command = window.index.press(control, { ...point, time: this.clock.now(), touch, doubleClick });
+    this.#dirty = true;
+    if (command !== null) {
+      // A double click goes at once; its release must not reach the page that replaces the Index.
+      this.#ignoreRelease = true;
+      return { result: this.#indexCommand(window, command) };
+    }
+    this.#press = { kind: 'index', window, touch };
+    return { result: undefined };
+  }
+
+  /**
+   * Performs what the Index asked for (special-screens.md §1.10): going to an entry queues "go to
+   * a page" for its target, then for each companion page; Enter also closes the Index, as do
+   * Cancel and Esc.
+   */
+  #indexCommand(window: Popup, command: IndexCommand | null): void | Promise<void> {
+    if (command === null) return;
+    if (command.kind === 'go') {
+      const entry = this.content.database.index[command.entry];
+      if (entry !== undefined) {
+        this.#goTo(entry.page);
+        for (const ref of entry.seeAlso) this.#goTo(ref);
+      }
+      if (!command.close) return;
+    }
+    return this.#closeWindow(window).then(() => {});
+  }
+
+  /** A press on a Help ScrollBar (special-screens.md §3.3): a line or page step at once, or a drag. */
+  #scrollPress(target: ObjectTarget, point: Point, touch: boolean): void {
+    const { look, rect } = target.object;
+    if (look?.kind !== 'scrollBar' || rect === null) return;
+    const layout = scrollBarLayout(rect.right - rect.left, rect.bottom - rect.top, look.scroll);
+    const part = scrollPartAt(point.y - rect.top, layout.trackTop, layout.thumbTop, layout.trackBottom);
+    look.pressed = part;
+    if (part !== 'thumb') look.scroll.position = scrollStep(look.scroll, part);
+    this.#press = {
+      kind: 'scroll',
+      target,
+      part,
+      touch,
+      nextRepeat: this.clock.now() + SCROLL_BAR_REPEAT_MS,
+    };
+    this.#dirty = true;
+  }
+
+  /**
+   * Dragging a Help ScrollBar's thumb: the thumb's centre follows the pointer. Leaving the bar ends
+   * the drag, as in the original, except for a finger.
+   */
+  #scrollMove(press: Extract<Press, { kind: 'scroll' }>, x: number, y: number): void {
+    if (press.part !== 'thumb') return;
+    const { look, rect } = press.target.object;
+    if (look?.kind !== 'scrollBar' || rect === null) return;
+    const point = this.#panelPoint(press.target, x, y);
+    if (!press.touch && !rectContains(rect, point.x, point.y)) {
+      this.#endPress();
+      return;
+    }
+    const layout = scrollBarLayout(rect.right - rect.left, rect.bottom - rect.top, look.scroll);
+    const position = scrollDragPosition(point.y - rect.top, layout, look.scroll);
+    if (position !== look.scroll.position) {
+      look.scroll.position = position;
+      this.#dirty = true;
+    }
+  }
+
+  /**
+   * The ScrollBar's 100 ms timer: while an arrow or the track is held, the step repeats as long as
+   * the pointer is inside the pressed part; otherwise the press ends.
+   */
+  #scrollRepeat(now: number): void {
+    const press = this.#press;
+    if (press?.kind !== 'scroll' || press.part === 'thumb') return;
+    const { look, rect } = press.target.object;
+    if (look?.kind !== 'scrollBar' || rect === null) return;
+    while (this.#press === press && now >= press.nextRepeat) {
+      const layout = scrollBarLayout(rect.right - rect.left, rect.bottom - rect.top, look.scroll);
+      const [top, bottom] = scrollPartRows(
+        press.part,
+        layout.height,
+        layout.trackTop,
+        layout.thumbTop,
+        layout.trackBottom,
+      );
+      const point =
+        this.#pointer === null ? null : this.#panelPoint(press.target, this.#pointer.x, this.#pointer.y);
+      const inside =
+        point !== null &&
+        point.x >= rect.left &&
+        point.x <= rect.right &&
+        point.y - rect.top >= top &&
+        point.y - rect.top < bottom;
+      if (!inside) {
+        this.#endPress();
+        return;
+      }
+      look.scroll.position = scrollStep(look.scroll, press.part);
+      press.nextRepeat += SCROLL_BAR_REPEAT_MS;
+      this.#dirty = true;
+    }
+  }
+
+  /** A finger swiping a ScrollBitmap scrolls its picture with the finger (a remake addition). */
+  #swipeMove(target: ObjectTarget, swipe: Swipe, y: number): void {
+    const look = target.object.look;
+    if (look?.kind !== 'scrollBitmap') return;
+    const dy = y - swipe.startY;
+    if (!swipe.swiping && Math.abs(dy) < SWIPE_THRESHOLD) return;
+    swipe.swiping = true;
+    const { scroll } = look;
+    if (scroll.max <= 0 || scroll.distance <= 0) return;
+    const position = clamp(
+      swipe.startPosition - Math.round((dy * scroll.max) / scroll.distance),
+      0,
+      scroll.max,
+    );
+    if (position !== scroll.position) {
+      scroll.position = position;
+      this.#dirty = true;
+    }
+  }
+
+  // -------------------------------------------------------------------------------------------
   // Page actions
 
   /** ChangePage (behaviour.md §4.3, rendering.md §7.7). */
@@ -1126,6 +1443,7 @@ export class Engine {
       }
       // The zoom flag belonged to the page opened in the window.
       window.zoomFrom = null;
+      window.index = instance.page.pageType === 'index' ? this.#newIndexScreen() : null;
     }
     this.#active = window;
     this.#dirty = true;
@@ -1153,6 +1471,7 @@ export class Engine {
       windowStyle(instance.template),
       owner,
     );
+    if (type === 'index') popup.index = this.#newIndexScreen();
     if (zoom && this.#lastPress !== null) {
       popup.zoomFrom = this.#zoomStart(this.#lastPress);
       await this.#playZoom(ZOOM_OPEN_PERCENTAGES, popup.zoomFrom, this.#screenRect(popup));
@@ -1190,10 +1509,8 @@ export class Engine {
     this.#popups.splice(at, 1);
     this.#expose(this.#windowBox(popup), below);
     const press = this.#press;
-    if (press !== null && (press.kind === 'object' ? press.target.window : press.window) === popup) {
-      this.#press = null;
-      this.#buttonPressed = false;
-    }
+    if (press !== null && ('target' in press ? press.target.window : press.window) === popup)
+      this.#endPress();
     if (popup.focusable) {
       const back = popup.opener === null || this.#popups.includes(popup.opener) ? popup.opener : null;
       this.#focus = back;
@@ -1407,13 +1724,25 @@ export class Engine {
     let window: Popup | null;
     let object: PlacedObject | null;
     const press = this.#press;
-    if (press?.kind === 'object') {
+    if (press?.kind === 'index') {
+      if (this.#pointer === null || press.window.index === null) return 'arrow';
+      const point = this.#contentPoint(press.window, this.#pointer.x, this.#pointer.y);
+      return press.window.index.cursorAt(point.x, point.y) ?? 'arrow';
+    }
+    if (press?.kind === 'object' || press?.kind === 'scroll') {
       window = press.target.window;
       object = press.target.object;
     } else {
       if (this.#pointer === null) return 'arrow';
       const hit = this.hitTest(this.#pointer.x, this.#pointer.y);
-      if (hit === null || hit.area !== 'client' || hit.object === null) return 'arrow';
+      if (hit === null || hit.area !== 'client') return 'arrow';
+      const index = (hit.window as Popup | null)?.index ?? null;
+      if (index !== null && hit.window !== null) {
+        const point = this.#contentPoint(hit.window as Popup, this.#pointer.x, this.#pointer.y);
+        const cursor = index.cursorAt(point.x, point.y);
+        if (cursor !== null) return cursor;
+      }
+      if (hit.object === null) return 'arrow';
       window = hit.window as Popup | null;
       object = hit.object;
     }

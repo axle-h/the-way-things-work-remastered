@@ -478,9 +478,10 @@ describe('the navigation bar and history (behaviour.md §6)', () => {
     expect(windowOf('options').owner).toBe(windowOf('pop1'));
     await click(inPopup(windowOf('options'), 69, 5));
     await click(inPopup(windowOf('options'), 69, 12));
+    const page = windowOf('pop1').page;
     expect(events).toEqual([
-      { kind: 'productOption', option: 1, page: windowOf('pop1').page },
-      { kind: 'productOption', option: 3, page: windowOf('pop1').page },
+      { kind: 'productOption', option: 1, page, image: expect.objectContaining({ width: 60, height: 80 }) },
+      { kind: 'productOption', option: 3, page, image: null },
     ]);
   });
 

@@ -10,6 +10,7 @@ import {
   type Clock,
   type CursorName,
   type EngineEvent,
+  type IndexedImage,
   type PageRef,
 } from '@twtw/engine';
 import { WebAudioSink } from './audio.ts';
@@ -20,6 +21,9 @@ import { HttpDataSource } from './http-source.ts';
 import { attachInput } from './input.ts';
 import { indexedToRgba } from './rgba.ts';
 import { clientToFramebuffer, nativeLayout } from './stage.ts';
+
+// The original's main window title, fixed for every page (special-screens.md §7).
+document.title = 'The Way Things Work';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#stage');
 const status = document.querySelector<HTMLElement>('#status');
@@ -74,11 +78,12 @@ async function showHashState(engine: Engine): Promise<void> {
   for (const ref of refs.slice(1)) await engine.openPage(ref);
 }
 
-function onEvent(event: EngineEvent): void {
+function onEvent(event: EngineEvent, palette: Uint8Array): void {
   switch (event.kind) {
     case 'productOption':
-      // Copy and print are Phase 8.
+      // Copy and print are Phase 8; until then the picture they would use is offered as a download.
       console.info(`product option ${event.option} for page ${event.page?.ref ?? 'none'}`);
+      if (event.image !== null) downloadImage(event.image, palette, `twtw-${event.page?.ref ?? 'page'}.png`);
       break;
     case 'quit':
       break;
@@ -124,7 +129,7 @@ async function start(): Promise<void> {
     clock: systemClock,
     media,
   });
-  engine.on(onEvent);
+  engine.on((event) => onEvent(event, engine.palette));
   if (import.meta.env.DEV) {
     // For poking at playback from the browser console during development.
     Object.assign(window, { twtw: { engine, media, sink, playbackLog } });
@@ -152,6 +157,26 @@ async function start(): Promise<void> {
   });
   await showHashState(engine);
   requestAnimationFrame(frame);
+}
+
+/** Saves an indexed picture as a PNG file (a debug stand-in for Phase 8's copy and print). */
+function downloadImage(image: IndexedImage, palette: Uint8Array, name: string): void {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext('2d');
+  if (context === null) return;
+  const data = context.createImageData(image.width, image.height);
+  indexedToRgba(image.pixels, palette, data.data);
+  context.putImageData(data, 0, 0);
+  canvas.toBlob((blob) => {
+    if (blob === null) return;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+  }, 'image/png');
 }
 
 /** A sink that records each start (dev builds): when, from where, and when its sound is heard. */

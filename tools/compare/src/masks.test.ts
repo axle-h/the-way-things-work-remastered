@@ -56,6 +56,16 @@ describe('deriveMasks', () => {
     expect(caption?.referenceColours).toEqual([0x9e9e9e, 0x3296fa]);
   });
 
+  it("masks only the Index page's edit box and list, where our font differs", async () => {
+    const masks = await masksFor({ base: ref('other'), popups: [ref('index')] });
+    const window = engine.windows[0]!;
+    const top = window.y + window.caption;
+    expect(masks.filter((mask) => mask.reason === 'indexText').map((mask) => mask.rect)).toEqual([
+      rect(window.x + 27, top + 88, window.x + 27 + 309, top + 88 + 16),
+      rect(window.x + 27, top + 138, window.x + 27 + 293, top + 138 + 169),
+    ]);
+  });
+
   it('masks the A–Z lamp', async () => {
     const masks = await masksFor({ base: ref('dial'), popups: [] });
     const left = CONTENT.x + DIAL_POSITIONS.lamp.x;

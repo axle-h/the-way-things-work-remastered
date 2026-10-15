@@ -19,6 +19,8 @@ export const REASONS = {
   autostartAnimation: 'autostart animation frames over the page (rendering.md §8)',
   animationLeftover: 'frames of the animation that moved on to this page stay on screen (rendering.md §8)',
   referenceChanging: 'the reference was still changing here when it was captured (sidecar changingRect)',
+  indexText:
+    "the Index page's edit box and list: text in our own font instead of Windows' MS Serif (special-screens.md §1.3)",
 } as const;
 
 export type Reason = keyof typeof REASONS;

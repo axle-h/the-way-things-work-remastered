@@ -8,6 +8,7 @@ export const FALLBACK_CURSORS: Readonly<Record<CursorName, string>> = {
   arrow: 'default',
   hand: 'pointer',
   wait: 'wait',
+  ibeam: 'text',
 };
 
 /**

@@ -12,6 +12,8 @@ import {
   readCursorResources,
   readNeResources,
   readPaletteResource,
+  readStringResource,
+  ProgramString,
   type NeResources,
 } from '../src/index.ts';
 import { describeIfAvailable, discFile, missingDiscFile } from './disc.ts';
@@ -99,6 +101,19 @@ describeIfAvailable('NE resources corpus (disc)', missingDiscFile(PROGRAM), () =
       expect(used.has(CURSOR_PIXEL.transparent)).toBe(true);
       // The hotspot is on the drawn shape, not on a transparent pixel.
       expect(image.pixels[image.hotspotY * image.width + image.hotspotX]).not.toBe(CURSOR_PIXEL.transparent);
+    }
+  });
+
+  it('reads the strings the remake uses from the string table (program.md, Strings)', () => {
+    const blocks = resources.ofType(NE_RESOURCE_TYPE.string).map((block) => block.id);
+    expect(blocks.toSorted((a, b) => Number(a) - Number(b))).toEqual([1, 2, 3, 4, 5, 6, 126, 313]);
+    expect(readStringResource(resources, ProgramString.title)).toBe('The Way Things Work');
+    const copyright = readStringResource(resources, ProgramString.copyright);
+    expect(copyright?.length).toBe(56);
+    expect(copyright?.startsWith('(C) 1994 ')).toBe(true);
+    // The only string in its block.
+    for (let id = 4992; id < 5008; id++) {
+      if (id !== ProgramString.copyright) expect(readStringResource(resources, id)).toBeNull();
     }
   });
 });

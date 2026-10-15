@@ -20,6 +20,7 @@ import {
 } from '@twtw/formats';
 import {
   DIAL_POSITIONS,
+  INDEX_CONTROLS,
   WINE,
   type DataSource,
   type PageInstance,
@@ -209,6 +210,22 @@ export async function deriveMasks(input: MaskInput, animations: AnimationCatalog
       detail: `caption strip of popup ${window.page.ref} where the reference shows Wine's colours`,
       referenceColours: [rgbValue(WINE.frameColour), rgbValue(WINE.activeCaptionColour)],
     });
+  }
+
+  // The Index page's text controls: our font differs from Windows' (and Wine's) raster fonts. The
+  // scroll bar and the buttons are the program's bitmaps and must match.
+  for (const window of input.windows) {
+    if (window.page.page.pageType !== 'index') continue;
+    for (const control of ['edit', 'list'] as const) {
+      const { x, y, width, height } = INDEX_CONTROLS[control];
+      const left = window.x + x;
+      const top = window.y + window.caption + y;
+      masks.push({
+        reason: 'indexText',
+        rect: { left, top, right: left + width, bottom: top + height },
+        detail: `the Index ${control === 'edit' ? 'edit box' : 'list'} of page ${window.page.ref}`,
+      });
+    }
   }
 
   // The A–Z dial's lamp.

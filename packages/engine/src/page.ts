@@ -20,6 +20,7 @@ import { paletteIndexOf } from './colours.ts';
 import { PanelLayer } from './render/layer.ts';
 import { ProgramBitmap, type PictureStore } from './pictures.ts';
 import type { IndexedImage } from './screen.ts';
+import { scrollBitmapState, type ScrollPart, type ScrollState } from './special/scroll.ts';
 
 /** What a display object draws at rest; `null` for objects that draw nothing (hotspots etc.). */
 export type ObjectLook =
@@ -27,10 +28,21 @@ export type ObjectLook =
   | { readonly kind: 'picture'; readonly picture: IndexedImage | null }
   /** The CancelButton: its picture at rest, and the one drawn while it is pressed. */
   | { readonly kind: 'button'; readonly picture: IndexedImage | null; readonly pressed: IndexedImage | null }
-  /** The rectangle's size of the picture, from its top row (scroll position 0). */
-  | { readonly kind: 'scrollBitmap'; readonly picture: IndexedImage | null }
-  /** The eight part bitmaps of a scroll bar, in data order (rendering.md §5). */
-  | { readonly kind: 'scrollBar'; readonly parts: readonly (IndexedImage | null)[] }
+  /**
+   * The rectangle's size of the picture, from the row of its scroll position (special-screens.md
+   * §3.2). `scroll` is shared with the partner ScrollBar.
+   */
+  | { readonly kind: 'scrollBitmap'; readonly picture: IndexedImage | null; readonly scroll: ScrollState }
+  /**
+   * The eight part bitmaps of a scroll bar, in data order (rendering.md §5), its position (the
+   * partner ScrollBitmap's) and the part shown pressed.
+   */
+  | {
+      readonly kind: 'scrollBar';
+      readonly parts: readonly (IndexedImage | null)[];
+      scroll: ScrollState;
+      pressed: ScrollPart | null;
+    }
   /** An AnimationControl's strip, which changes while its movie plays (playback.md §7). */
   | { readonly kind: 'control'; readonly strip: ControlStrip };
 
@@ -187,6 +199,7 @@ export async function instantiatePage(context: PageLoadContext, ref: PageRef): P
   const panels = await Promise.all(
     entries.map(async ({ source, slot, panel }): Promise<PanelInstance> => {
       const objects = panel === null ? [] : await Promise.all(panel.objects.map((o) => loader.place(o)));
+      linkScrollBars(objects);
       const dial = panel?.kind === 'azDial' ? await loader.dial(panel) : null;
       const extent = objectExtent(objects);
       const width = slot !== null && slot.width !== 0 ? slot.width : extent.width;
@@ -212,6 +225,21 @@ export async function instantiatePage(context: PageLoadContext, ref: PageRef): P
   const width = template.width !== 0 ? template.width : Math.max(0, ...panels.map((p) => p.x + p.width));
   const height = template.height !== 0 ? template.height : Math.max(0, ...panels.map((p) => p.y + p.height));
   return { ref, page, template, panels, width, height, problems };
+}
+
+/**
+ * Links each ScrollBar whose `u16` is 1 to its partner, the first ScrollBitmap of its panel with
+ * the id in its first `i16` (special-screens.md §3.1–3.2): the bar takes over the partner's range
+ * and page, and both share one position. Both start at the initial position, 0 on the disc.
+ */
+function linkScrollBars(objects: readonly PlacedObject[]): void {
+  for (const { object, look } of objects) {
+    if (object.kind !== 'scrollBar' || look?.kind !== 'scrollBar' || object.unknown1 !== 1) continue;
+    const partner = objects.find((candidate) => candidate.object.id === object.unknown2);
+    if (partner?.look?.kind !== 'scrollBitmap') continue;
+    look.scroll = partner.look.scroll;
+    look.scroll.position = Math.max(0, Math.min(look.scroll.max, object.unknown5));
+  }
 }
 
 /**
@@ -270,11 +298,27 @@ class ObjectLoader {
             : { ...rect, right: rect.left + CONTROL_WIDTH, bottom: rect.top + CONTROL_HEIGHT };
         return { object, rect: placed, look: { kind: 'control', strip: this.#controlStrip() } };
       }
-      case 'scrollBitmap':
-        return { object, rect, look: { kind: 'scrollBitmap', picture: await this.#picture(object.file) } };
+      case 'scrollBitmap': {
+        const picture = await this.#picture(object.file);
+        // The maximum is recomputed from the sizes; the stored one agrees (special-screens.md §3.1).
+        const scroll = scrollBitmapState(
+          object.rect.bottom - object.rect.top,
+          picture?.height ?? 0,
+          object.unknown5,
+        );
+        return { object, rect, look: { kind: 'scrollBitmap', picture, scroll } };
+      }
       case 'scrollBar': {
         const parts = await Promise.all(object.parts.map((name) => this.#picture(name)));
-        return { object, rect, look: { kind: 'scrollBar', parts } };
+        // Its own range until it is linked to its partner (none unlinked on the disc).
+        const max = Math.max(0, object.unknown4 - object.unknown3);
+        const scroll: ScrollState = {
+          position: Math.max(0, Math.min(max, object.unknown5 - object.unknown3)),
+          max,
+          page: 1,
+          distance: 0,
+        };
+        return { object, rect, look: { kind: 'scrollBar', parts, scroll, pressed: null } };
       }
       case 'hotspot':
       case 'azHotspot':
